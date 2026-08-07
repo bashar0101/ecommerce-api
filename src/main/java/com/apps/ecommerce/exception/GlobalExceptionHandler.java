@@ -12,10 +12,12 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import lombok.extern.slf4j.Slf4j;
+
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
-    // catches validation errors from @Valid
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse handleValidation(
@@ -27,9 +29,6 @@ public class GlobalExceptionHandler {
                 400, "Not valid", ex.getMessage(), LocalDateTime.now(), errors);
     }
 
-    // catches failed logins (bad password, unknown email, disabled account).
-    // message stays generic on purpose — a specific one tells an attacker
-    // whether the email exists
     @ExceptionHandler(AuthenticationException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public ErrorResponse handleAuthentication(AuthenticationException ex) {
@@ -37,18 +36,17 @@ public class GlobalExceptionHandler {
                 401, "invalid email or password", ex.getMessage(), LocalDateTime.now(), null);
     }
 
-    // catches RuntimeException (your custom exceptions go here)
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ErrorResponse handleUnexpected(Exception ex) {
-        // log.error("Unexpected error", ex);
+        log.error("Unexpected error", ex);
         return new ErrorResponse(500, "Something went wrong", ex.getMessage(), LocalDateTime.now(), null);
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorResponse handleNotFound(ResourceNotFoundException ex) {
-        return new ErrorResponse(404, "Not found", ex.getMessage(), LocalDateTime.now(), null);
+        return new ErrorResponse(404, "Not found", null, LocalDateTime.now(), null);
     }
 
     @ExceptionHandler(DuplicateResourceException.class)

@@ -8,7 +8,7 @@ import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
 
-import com.apps.ecommerce.enums.Status;
+import com.apps.ecommerce.enums.OrderStatus;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -46,7 +46,7 @@ public class Order {
 
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
-    private Status status;
+    private OrderStatus status;
 
     @Column(nullable = false)
     private BigDecimal totalPrice;

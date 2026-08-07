@@ -37,12 +37,6 @@ public class ProductController {
         return ResponseEntity.ok(productService.findAll(pageable));
     }
 
-    // @GetMapping("/{name}")
-    // public ResponseEntity<ProductResponseDto> findByName(@PathVariable String
-    // name) {
-    // return ResponseEntity.ok(productService.findByName(name));
-    // }
-
     @GetMapping("/{id}")
     public ResponseEntity<ProductResponse> findById(@PathVariable UUID id) {
         return ResponseEntity.ok(productService.findById(id));
