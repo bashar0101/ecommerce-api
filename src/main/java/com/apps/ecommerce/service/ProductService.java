@@ -11,7 +11,7 @@ import com.apps.ecommerce.dto.ProductCreateRequest;
 import com.apps.ecommerce.dto.ProductResponse;
 import com.apps.ecommerce.entity.Product;
 import com.apps.ecommerce.exception.ResourceNotFoundException;
-import com.apps.ecommerce.repository.ProductRepo;
+import com.apps.ecommerce.repository.ProductRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -19,7 +19,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ProductService {
 
-    private final ProductRepo productRepo;
+    private final ProductRepository productRepo;
 
     public ProductResponse create(ProductCreateRequest dto) {
         Product newProduct = new Product();
