@@ -38,12 +38,16 @@ public class Product {
     private String description;
 
     @Override
-    public boolean equals(Object obj) {
-        return super.equals(obj);
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (!(o instanceof Product other))
+            return false;
+        return id != null && id.equals(other.getId());
     }
 
     @Override
     public int hashCode() {
-        return super.hashCode();
+        return getClass().hashCode(); // fixed value, never changes when id is set
     }
 }

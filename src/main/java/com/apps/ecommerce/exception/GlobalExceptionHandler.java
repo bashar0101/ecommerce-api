@@ -40,7 +40,7 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ErrorResponse handleUnexpected(Exception ex) {
         log.error("Unexpected error", ex);
-        return new ErrorResponse(500, "Something went wrong", ex.getMessage(), LocalDateTime.now(), null);
+        return new ErrorResponse(500, "Something went wrong", null, LocalDateTime.now(), null);
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)
