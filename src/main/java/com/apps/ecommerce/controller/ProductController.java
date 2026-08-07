@@ -53,7 +53,7 @@ public class ProductController {
         ProductResponse created = productService.create(dto);
 
         return ResponseEntity
-                .created(URI.create("/product/" + created.name()))
+                .created(URI.create("/product/" + created.id()))
                 .body(created);
     }
 
