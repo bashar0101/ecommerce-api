@@ -11,6 +11,6 @@ public record OrderResponse(
         UUID id,
         OrderStatus status,
         LocalDateTime createdAt,
-        List<OrderItem> items) {
+        List<OrderItemResponse> items) {
 
 }
