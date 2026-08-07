@@ -1,4 +1,4 @@
-package com.apps.ecommerece.exception;
+package com.apps.ecommerce.exception;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -47,7 +47,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResourceNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorResponseDto handleNotFound(ResourceNotFoundException ex) {
-        return new ErrorResponseDto(404, "user Not found", ex.getMessage(), LocalDateTime.now(), null);
+        return new ErrorResponseDto(404, "Not found", ex.getMessage(), LocalDateTime.now(), null);
     }
 
     @ExceptionHandler(DuplicateResourceException.class)

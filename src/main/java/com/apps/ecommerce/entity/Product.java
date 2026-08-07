@@ -1,44 +1,39 @@
-package com.apps.ecommerece.entity;
+package com.apps.ecommerce.entity;
 
+import java.math.BigDecimal;
 import java.util.UUID;
-
-import com.apps.ecommerece.enums.Role;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
+
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @NoArgsConstructor
 @AllArgsConstructor
-@Data
-@Builder
-public class User {
+@Setter
+@Getter
+public class Product {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false, unique = true)
-    private String email;
+    @Column(nullable = false)
+    private String name;
 
     @Column(nullable = false)
-    private String password;
-
-    @Builder.Default
-    @Column(nullable = false)
-    @Enumerated(EnumType.STRING)
-    private Role role = Role.USER;
+    private BigDecimal price;
 
     @Column(nullable = false)
-    private boolean enabled;
+    private Integer stock;
 
+    @Column(nullable = false)
+    private String description;
 }

@@ -1,4 +1,4 @@
-package com.apps.ecommerece.exception;
+package com.apps.ecommerce.exception;
 
 import java.time.LocalDateTime;
 import java.util.Map;
