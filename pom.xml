@@ -9,9 +9,9 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.apps</groupId>
-	<artifactId>ecommerece</artifactId>
+	<artifactId>ecommerce</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>ecommerece</name>
+	<name>ecommerce</name>
 	<description/>
 	<url/>
 	<licenses>
