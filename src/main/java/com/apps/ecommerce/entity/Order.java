@@ -34,6 +34,7 @@ import lombok.Setter;
 @Setter
 @Getter
 @Table(name = "orders")
+
 public class Order {
 
     @Id
@@ -57,4 +58,15 @@ public class Order {
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
+
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj);
+    }
+
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
+
 }

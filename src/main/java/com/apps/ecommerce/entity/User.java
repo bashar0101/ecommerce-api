@@ -41,4 +41,14 @@ public class User {
     @Column(nullable = false)
     private boolean enabled;
 
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj);
+    }
+
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
+
 }

@@ -36,4 +36,14 @@ public class Product {
 
     @Column(nullable = false)
     private String description;
+
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj);
+    }
+
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
 }

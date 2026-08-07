@@ -40,4 +40,13 @@ public class OrderItem {
     @Column(nullable = false)
     private BigDecimal unitPrice;
 
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj);
+    }
+
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
 }
