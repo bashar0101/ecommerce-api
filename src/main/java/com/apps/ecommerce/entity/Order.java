@@ -34,7 +34,6 @@ import lombok.Setter;
 @Setter
 @Getter
 @Table(name = "orders")
-
 public class Order {
 
     @Id

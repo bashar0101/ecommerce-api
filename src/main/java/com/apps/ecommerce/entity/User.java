@@ -8,9 +8,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
 import lombok.AllArgsConstructor;
 
 import lombok.Getter;
@@ -25,8 +24,19 @@ import lombok.Setter;
 public class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+
+    /**
+     * Hibernate's UUID generator overwrites any id we assign ourselves, so the id
+     * is filled in here instead. That lets the seeder pin a known, fixed UUID for
+     * the test user while normal users still get a random one.
+     */
+    @PrePersist
+    void assignIdIfMissing() {
+        if (id == null) {
+            id = UUID.randomUUID();
+        }
+    }
 
     @Column(nullable = false, unique = true)
     private String email;
@@ -45,7 +55,7 @@ public class User {
     public boolean equals(Object o) {
         if (this == o)
             return true;
-        if (!(o instanceof Product other))
+        if (!(o instanceof User other))
             return false;
         return id != null && id.equals(other.getId());
     }
