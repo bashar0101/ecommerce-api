@@ -26,7 +26,7 @@ public class OrderController {
     private final OrderService orderService;
 
     @PostMapping("")
-    public ResponseEntity<OrderResponse> postMethodName(@RequestParam UUID userId,
+    public ResponseEntity<OrderResponse> createOrder(@RequestParam UUID userId,
             @Valid @RequestBody OrderCreateRequest dto) {
         OrderResponse newOrder = orderService.create(userId, dto);
 
