@@ -54,4 +54,11 @@ public class GlobalExceptionHandler {
     public ErrorResponse handleDuplicate(DuplicateResourceException ex) {
         return new ErrorResponse(409, "email already registered", ex.getMessage(), LocalDateTime.now(), null);
     }
+
+    @ExceptionHandler(InsufficientStockException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorResponse noStock(InsufficientStockException ex) {
+        return new ErrorResponse(409, "no stock", ex.getMessage(), LocalDateTime.now(), null);
+    }
+
 }
