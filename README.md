@@ -301,22 +301,231 @@ curl http://localhost:8080/api/v1/products/<product-id-from-step-1>
 - **Copy-paste bug in `equals()`.** `Order` and `OrderItem` both test `o instanceof Product`, so their `equals` always returns `false` against another instance of their own type. `User` has been fixed; these two still need it.
 - **More tests.** `OrderService.create` is covered for the stock check, the total, and the rollback. Still open: the unknown-product 404, the duplicate-`productId` case, and the controller layer.
 
-## Running the tests
+## Testing
 
 ```bash
-./mvnw test
+./mvnw test                      # everything
+./mvnw test -Dtest=ProductTest   # one class
 ```
 
-Tests run against **H2 in memory**, not your MySQL — `src/test/resources/application-test.properties` overrides the datasource, and the `@SpringBootTest` classes select it with `@ActiveProfiles("test")`. The schema is rebuilt per run (`ddl-auto=create-drop`), so `mvn test` never touches development data.
+Four test classes, 7 tests.
 
-Two flavours of test are in the suite:
+| Class | Kind | Boots Spring? | Touches a database? | Proves |
+|---|---|---|---|---|
+| `EcommerceApplicationTests` | smoke | yes | yes (H2) | the app is wired correctly |
+| `ProductTest` | unit | no | no | `equals` / `hashCode` on an entity |
+| `OrderServiceTest` | unit (Mockito) | no | no | order logic — total, stock check, exception |
+| `OrderServiceIntegrationTest` | integration | yes | yes (H2) | the transaction really rolls back |
 
-- `OrderServiceTest` — Mockito. The repositories are fakes, nothing boots, the assertions are about pure logic (total, stock decrement, exception type). Fast.
-- `OrderServiceIntegrationTest` — real Spring context, real transactions against H2. This is the only way to prove the rollback actually happens, since a mocked repository has no transaction to roll back.
+### Where tests get their database
 
+Never your MySQL. `src/test/resources/application-test.properties` swaps the datasource:
 
+```properties
+spring.datasource.url=jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1;NON_KEYWORDS=USER
+spring.jpa.hibernate.ddl-auto=create-drop
+```
 
-# Testing
-## What a mock is
+- `h2:mem:testdb` — the whole database lives in RAM and vanishes when the JVM exits.
+- `MODE=MySQL` — H2 imitates MySQL's SQL dialect so the queries behave like production.
+- `DB_CLOSE_DELAY=-1` — keeps the database alive between connections; without it H2 drops everything the moment the last connection closes, mid-run.
+- `NON_KEYWORDS=USER` — H2 2.x treats `USER` as a reserved word, so an unquoted `user` table is a syntax error. Belt-and-braces now that the entity uses `@Table(name = "users")`.
+- `create-drop` — schema rebuilt from the entities at startup, dropped at shutdown. Every run starts clean.
 
-- **A mock is a fake object that looks like the real one, but you decide what it returns.** You tell it: "when someone calls findById with this id, give back this user." It never touches MySQL.
+The two `@SpringBootTest` classes opt in with `@ActiveProfiles("test")`. That annotation is what loads the `-test` file — without it they'd connect to your real MySQL.
+
+### Vocabulary
+
+- **Mock** — a fake object that looks like the real one, but you decide what it returns. `userRepository` in `OrderServiceTest` is a fake: it has the same methods, but no database behind it.
+- **Stub** — teaching the mock one answer: `when(x.find(id)).thenReturn(user)` means "if anyone calls `find` with this id, hand back this user." Anything you don't stub returns `null` (or an empty `Optional`).
+- **Verify** — asserting on *behaviour* rather than a value: "was `save` called?" Regular assertions check what a method returned; `verify` checks what it did.
+- **Arrange / Act / Assert** — the three phases of a test. Build the situation, run the one thing under test, then check the outcome. The comments in `ProductTest` mark them explicitly.
+
+---
+
+### `EcommerceApplicationTests`
+
+```java
+@ActiveProfiles("test")
+@SpringBootTest
+class EcommerceApplicationTests {
+    @Test
+    void contextLoads() { }
+}
+```
+
+The body is empty on purpose — that isn't laziness.
+
+- `@SpringBootTest` starts the entire application: component scan, every bean, JPA, Hibernate's schema generation, Spring Security.
+- If any bean is misconfigured — a missing dependency, a bad property, a broken entity mapping — startup throws and the test fails.
+- So an empty method is a real assertion: *the application can start.* This is the test that caught both the H2 reserved-word failure and the `StaleObjectStateException` from the seeder.
+- `@ActiveProfiles("test")` points it at H2 instead of MySQL.
+
+---
+
+### `ProductTest` — a pure unit test
+
+No Spring, no database, no mocks. It constructs objects with `new` and checks two methods. Runs in milliseconds.
+
+**`sameIdMeansEqual`**
+
+```java
+UUID id = UUID.randomUUID();     // one id, shared
+Product a = new Product();
+a.setId(id);
+a.setName("a");
+
+Product b = new Product();
+b.setId(id);                     // same id
+b.setName("b");                  // different name — deliberately
+
+assertEquals(a, b);
+```
+
+Two objects, same id, **different names**, and the assertion says they're equal. That's the point: `Product.equals` compares `id` and nothing else. For a JPA entity, identity means "same database row", not "same field values" — a product whose name you just edited is still the same product.
+
+**`differentIdMeansNotEqual`**
+
+Same shape, but each product gets its own `UUID.randomUUID()`, and the assertion flips to `assertNotEquals`. Different rows, so not equal — even though both are `Product` objects with the same shape.
+
+**`hashCodeStaysTheSame`**
+
+```java
+Product p = new Product();
+int before = p.hashCode();       // Arrange — id is still null here
+
+p.setId(UUID.randomUUID());      // Act — Hibernate does this on insert
+
+assertEquals(before, p.hashCode());   // Assert — unchanged
+```
+
+This guards the odd-looking `return getClass().hashCode();` in the entity.
+
+Why it matters: put a new `Product` in a `HashSet` before saving it, and the set files it under its current hash. Hibernate then assigns the id at insert time. If `hashCode` were built from the id, it would now return something different, the object would be in the wrong bucket, and `set.contains(p)` would say **false** for an object the set is literally holding. A constant hash can never drift, so the entity stays findable.
+
+---
+
+### `OrderServiceTest` — unit test with mocks
+
+```java
+@ExtendWith(MockitoExtension.class)
+public class OrderServiceTest {
+
+    @Mock private OrderRepository orderRepository;
+    @Mock private ProductRepository productRepository;
+    @Mock private UserRepository userRepository;
+
+    @InjectMocks private OrderService orderService;
+```
+
+- `@ExtendWith(MockitoExtension.class)` — plugs Mockito into JUnit 5. It creates fresh mocks before each test and, after each test, fails the run if you stubbed something that was never used (strict stubs — it catches tests that don't do what you think).
+- `@Mock` — a fake repository. Same interface, no database, every method returns `null`/empty until stubbed.
+- `@InjectMocks` — builds the **real** `OrderService` and pushes the three fakes into it. This works because `OrderService` uses `@RequiredArgsConstructor`, so Mockito has a constructor to hand them to.
+
+Net effect: real business logic, fake data layer. Nothing boots, nothing connects, the test runs in milliseconds.
+
+**`throwsWhenStockNotEnough`**
+
+```java
+Product product = new Product();
+product.setStock(3);                                            // only 3 in stock
+
+when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+when(productRepository.findAllById(any())).thenReturn(List.of(product));
+
+var request = new OrderCreateRequest(List.of(new OrderItemRequest(productId, 5)));   // asking for 5
+
+assertThrows(InsufficientStockException.class, () -> orderService.create(userId, request));
+
+assertEquals(3, product.getStock());
+verify(orderRepository, never()).save(any());
+```
+
+Line by line:
+
+1. Build a product with **3** in stock. It's a plain object — no database anywhere.
+2. `when(userRepository.findById(userId)).thenReturn(Optional.of(user))` — stub the user lookup so the service gets past its first step. Without this the mock returns an empty `Optional` and the service throws `ResourceNotFoundException` instead, testing the wrong thing.
+3. `when(productRepository.findAllById(any()))` — `any()` is an argument matcher meaning "called with anything". The service builds that id `Set` internally, so matching it exactly would be brittle.
+4. The request asks for **5** against a stock of 3 — this is what must trip the check. (Asking for fewer than 3 was the original bug: no exception, execution ran on to an unstubbed `save()` returning `null`, and `toDto(null)` threw an NPE.)
+5. `assertThrows(InsufficientStockException.class, …)` — runs the lambda and fails unless *that specific type* is thrown. The lambda is required so the exception happens inside the assertion rather than blowing up the test method.
+6. `assertEquals(3, product.getStock())` — stock untouched. The service throws before decrementing.
+7. `verify(orderRepository, never()).save(any())` — a behaviour check: no order was ever persisted. A rejected order must leave nothing behind.
+
+**`createsOrderCorrectly`**
+
+```java
+product.setPrice(new BigDecimal("25.50"));
+product.setStock(10);
+
+when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+
+var request = new OrderCreateRequest(List.of(new OrderItemRequest(productId, 2)));
+OrderResponse response = orderService.create(userId, request);
+
+assertEquals(0, new BigDecimal("51.00").compareTo(response.totalPrice()));
+assertEquals(8, product.getStock());
+assertEquals(OrderStatus.PENDING, response.status());
+```
+
+- `thenAnswer(i -> i.getArgument(0))` — "whatever `Order` you're handed, give it straight back." A real repository returns the saved entity; an unstubbed mock returns `null`, and the service would then NPE on `toDto(null)`. This one line stands in for the database round trip.
+- `assertEquals(0, …compareTo(…))` instead of `assertEquals(expected, actual)` — `BigDecimal.equals` compares **scale as well as value**, so `51.0` and `51.00` are not equal to it. `compareTo` returns `0` when the numeric values match regardless of scale. Always compare money with `compareTo`.
+- `assertEquals(8, product.getStock())` — 10 minus 2. The service mutates the object it was handed, so the test can read the decrement directly.
+- `assertEquals(OrderStatus.PENDING, response.status())` — a new order is placed, not paid.
+
+---
+
+### `OrderServiceIntegrationTest` — the real thing
+
+```java
+@SpringBootTest
+@ActiveProfiles("test")
+public class OrderServiceIntegrationTest {
+
+    @Autowired private OrderService orderService;
+    @Autowired private ProductRepository productRepository;
+    // …
+```
+
+No mocks here. `@Autowired` pulls the actual beans out of a running Spring context, and the repositories talk to real H2 tables through real transactions.
+
+**`setUp` — runs before every test**
+
+```java
+orderRepository.deleteAll();
+productRepository.deleteAll();
+userRepository.deleteAll();
+```
+
+Order matters. Orders reference users and products by foreign key, so children go first — deleting a product still referenced by an order line would violate the constraint. (`OrderItem` rows go with their order automatically, via `cascade = ALL` + `orphanRemoval` on `Order.items`.)
+
+Then it seeds a user and two products — a **laptop with stock 10** and a **mouse with stock 1** — keeping their generated ids in fields. `@BeforeEach` means every test starts from this exact state, so tests can't leak into each other.
+
+**`rollsBackEverythingWhenOneItemFails`**
+
+```java
+var request = new OrderCreateRequest(List.of(
+        new OrderItemRequest(laptopId, 2),   // fine — 10 in stock
+        new OrderItemRequest(mouseId, 5)));  // fails — only 1 in stock
+
+assertThrows(InsufficientStockException.class,
+        () -> orderService.create(userId, request));
+
+assertEquals(10, productRepository.findById(laptopId).get().getStock());
+assertEquals(0, orderRepository.count());
+```
+
+The basket is deliberately ordered so the **first** line succeeds and the **second** fails. Walking the items, the service decrements the laptop from 10 to 8, then hits the mouse and throws.
+
+The two assertions are the whole point:
+
+- `assertEquals(10, …getStock())` — re-read from the database, the laptop is back at **10**, not 8. The decrement was undone.
+- `assertEquals(0, orderRepository.count())` — no half-written order survived.
+
+That's `@Transactional` on `OrderService.create` doing its job: `InsufficientStockException` is unchecked, so `jakarta.transaction.Transactional` rolls the transaction back, discarding both the stock update and the partial order.
+
+**Why this can't be a mock test.** Run the same two-item scenario in `OrderServiceTest` and the laptop object would read **8** afterwards. Mocks have no transaction and no rollback — a plain Java object stays mutated. Only a real database with a real transaction can demonstrate that the change was actually reverted.
+
+### Which kind to write
+
+- Reach for the **mock test** for logic: calculations, branching, which exception, whether a collaborator was called. It's fast, and a failure points at one method.
+- Reach for the **integration test** when the framework is the thing under test: transactions and rollback, JPA mappings, cascades, queries, constraints. It's slower — a full context boot — but it's the only place those behaviours actually exist.
