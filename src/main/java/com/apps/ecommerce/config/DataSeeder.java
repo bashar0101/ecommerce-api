@@ -54,11 +54,11 @@ public class DataSeeder {
 
             log.info("""
 
-                    ────────────── TEST USER ──────────────
+                    ============== TEST USER ==============
                      id       : {}
                      email    : {}
                      password : {}
-                    ───────────────────────────────────────""",
+                    =======================================""",
                     user.getId(), user.getEmail(), password);
         };
     }

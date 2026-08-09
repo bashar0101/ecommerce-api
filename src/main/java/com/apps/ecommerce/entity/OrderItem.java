@@ -22,7 +22,6 @@ import lombok.Setter;
 @Getter
 public class OrderItem {
 
-
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
@@ -52,6 +51,6 @@ public class OrderItem {
 
     @Override
     public int hashCode() {
-        return getClass().hashCode(); // fixed value, never changes when id is set
+        return java.util.Objects.hash(id);
     }
 }

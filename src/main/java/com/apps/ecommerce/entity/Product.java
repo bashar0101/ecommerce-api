@@ -50,4 +50,9 @@ public class Product {
     public int hashCode() {
         return getClass().hashCode(); // fixed value, never changes when id is set
     }
+
+    @Override
+    public String toString() {
+        return "Product{id=" + id + ", name='" + name + "'}";
+    }
 }

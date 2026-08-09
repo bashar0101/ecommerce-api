@@ -36,7 +36,6 @@ public class OrderService {
         private final ProductRepository productRepository;
         private final UserRepository userRepository;
 
-        @SuppressWarnings("null")
         @Transactional
         public OrderResponse create(UUID userId, OrderCreateRequest dto) {
                 User user = userRepository.findById(userId)

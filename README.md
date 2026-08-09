@@ -295,3 +295,10 @@ curl http://localhost:8080/api/v1/products/<product-id-from-step-1>
 - **Reading orders isn't implemented.** `GET /api/v1/orders` and `GET /api/v1/orders/{id}` don't exist yet, and neither do status transitions (`PENDING → PAID → SHIPPED`, or `CANCELLED` with stock restored).
 - **Copy-paste bug in `equals()`.** `Order` and `OrderItem` both test `o instanceof Product`, so their `equals` always returns `false` against another instance of their own type. `User` has been fixed; these two still need it.
 - **No tests yet.** `OrderService.create` is the obvious first target — the stock check, the rollback on failure, and the total calculation are all pure logic worth pinning down.
+
+
+
+# Testing
+## What a mock is
+
+- **A mock is a fake object that looks like the real one, but you decide what it returns.** You tell it: "when someone calls findById with this id, give back this user." It never touches MySQL.
