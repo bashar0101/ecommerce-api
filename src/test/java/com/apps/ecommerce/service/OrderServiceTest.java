@@ -26,6 +26,7 @@ import com.apps.ecommerce.entity.Order;
 import com.apps.ecommerce.entity.Product;
 import com.apps.ecommerce.entity.User;
 import com.apps.ecommerce.enums.OrderStatus;
+import com.apps.ecommerce.exception.InsufficientStockException;
 import com.apps.ecommerce.repository.OrderRepository;
 import com.apps.ecommerce.repository.ProductRepository;
 import com.apps.ecommerce.repository.UserRepository;
@@ -63,9 +64,10 @@ public class OrderServiceTest {
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(productRepository.findAllById(any())).thenReturn(List.of(product));
 
-        OrderCreateRequest request = new OrderCreateRequest(List.of(new OrderItemRequest(productId, 1)));
+        // 5 > the stock of 3, so the check must trip
+        OrderCreateRequest request = new OrderCreateRequest(List.of(new OrderItemRequest(productId, 5)));
 
-        assertThrows(IllegalArgumentException.class, () -> orderService.create(userId, request));
+        assertThrows(InsufficientStockException.class, () -> orderService.create(userId, request));
 
         assertEquals(3, product.getStock());
         verify(orderRepository, never()).save(any());

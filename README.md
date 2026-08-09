@@ -44,7 +44,12 @@ The layering is deliberate: controllers only handle HTTP, services own the logic
 - **Order** — `id` (UUID), owning `user`, `status`, `totalPrice`, `createdAt`, list of items. Table is named `orders` because `order` is a reserved SQL word.
 - **OrderItem** — links an order to a product with `quantity` and `unitPrice`. The price is copied onto the line item so historical orders don't change when the catalog price changes.
 
-All primary keys are UUIDs. `Product`, `Order`, and `OrderItem` let Hibernate generate them via `@GeneratedValue(strategy = GenerationType.UUID)`. `User` is the exception — it assigns its own id in a `@PrePersist` hook, because Hibernate's generator overwrites any id you set by hand, and the seeder needs to pin a fixed, known UUID.
+`User`'s table is named `users` for the same reason `Order`'s is `orders` — `USER` is a reserved word in standard SQL. MySQL happens to allow it, H2 does not, so the unquoted name only broke once tests ran against H2.
+
+All primary keys are UUIDs. `Product`, `Order`, and `OrderItem` let Hibernate generate them via `@GeneratedValue(strategy = GenerationType.UUID)`. `User` is the exception, because the seeder needs to pin a fixed, known UUID, and that takes two changes working together:
+
+- **No `@GeneratedValue`.** Hibernate's UUID generator runs before every insert and overwrites whatever id you assigned. A `@PrePersist` hook fills the id in instead — only when it's still null, so an explicitly set id survives.
+- **`implements Persistable<UUID>`.** Spring Data picks between `persist()` and `merge()` by calling `isNew()`, which by default just tests `id == null`. With the id assigned up front, a brand-new user looks detached, goes down `merge()`, and fails with `StaleObjectStateException` — merge finds no row to merge into. A `@Transient boolean isNew` flag, cleared by `@PostPersist`/`@PostLoad`, answers the question honestly.
 
 ## The test user
 
@@ -72,7 +77,7 @@ app.seed.user.password=password123
 Set `app.seed.enabled=false` to turn the seeder off entirely (the bean is behind `@ConditionalOnProperty`). The password is BCrypt-hashed with the same `PasswordEncoder` bean the rest of the app uses, so the row is a realistic user, not a special case.
 
 > If you ran the app before the seeder existed and a `test@example.com` row is already there with a random id, the seeder will leave it alone. Delete that row to get the fixed id:
-> `DELETE FROM user WHERE email = 'test@example.com';`
+> `DELETE FROM users WHERE email = 'test@example.com';`
 
 ## API
 
@@ -294,7 +299,20 @@ curl http://localhost:8080/api/v1/products/<product-id-from-step-1>
 - **Stock needs a lock** before concurrent traffic — see [the race](#known-limitation-the-race).
 - **Reading orders isn't implemented.** `GET /api/v1/orders` and `GET /api/v1/orders/{id}` don't exist yet, and neither do status transitions (`PENDING → PAID → SHIPPED`, or `CANCELLED` with stock restored).
 - **Copy-paste bug in `equals()`.** `Order` and `OrderItem` both test `o instanceof Product`, so their `equals` always returns `false` against another instance of their own type. `User` has been fixed; these two still need it.
-- **No tests yet.** `OrderService.create` is the obvious first target — the stock check, the rollback on failure, and the total calculation are all pure logic worth pinning down.
+- **More tests.** `OrderService.create` is covered for the stock check, the total, and the rollback. Still open: the unknown-product 404, the duplicate-`productId` case, and the controller layer.
+
+## Running the tests
+
+```bash
+./mvnw test
+```
+
+Tests run against **H2 in memory**, not your MySQL — `src/test/resources/application-test.properties` overrides the datasource, and the `@SpringBootTest` classes select it with `@ActiveProfiles("test")`. The schema is rebuilt per run (`ddl-auto=create-drop`), so `mvn test` never touches development data.
+
+Two flavours of test are in the suite:
+
+- `OrderServiceTest` — Mockito. The repositories are fakes, nothing boots, the assertions are about pure logic (total, stock decrement, exception type). Fast.
+- `OrderServiceIntegrationTest` — real Spring context, real transactions against H2. This is the only way to prove the rollback actually happens, since a mocked repository has no transaction to roll back.
 
 
 

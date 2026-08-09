@@ -38,29 +38,29 @@ public class DataSeeder {
     @Value("${app.seed.user.id:11111111-1111-1111-1111-111111111111}")
     private UUID id;
 
-    @Bean
-    CommandLineRunner seedTestUser() {
-        return args -> {
-            User user = userRepository.findByEmail(email)
-                    .orElseGet(() -> {
-                        User u = new User();
-                        u.setId(id);
-                        u.setEmail(email);
-                        u.setPassword(passwordEncoder.encode(password));
-                        u.setRole(Role.USER);
-                        u.setEnabled(true);
-                        return userRepository.save(u);
-                    });
+    // @Bean
+    // CommandLineRunner seedTestUser() {
+    // return args -> {
+    // User user = userRepository.findByEmail(email)
+    // .orElseGet(() -> {
+    // User u = new User();
+    // u.setId(id);
+    // u.setEmail(email);
+    // u.setPassword(passwordEncoder.encode(password));
+    // u.setRole(Role.USER);
+    // u.setEnabled(true);
+    // return userRepository.save(u);
+    // });
 
-            log.info("""
+    // log.info("""
 
-                    ============== TEST USER ==============
-                     id       : {}
-                     email    : {}
-                     password : {}
-                    =======================================""",
-                    user.getId(), user.getEmail(), password);
-        };
-    }
+    // ============== TEST USER ==============
+    // id : {}
+    // email : {}
+    // password : {}
+    // =======================================""",
+    // user.getId(), user.getEmail(), password);
+    // };
+    // }
 
 }
