@@ -16,6 +16,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 import com.apps.ecommerce.dto.OrderCreateRequest;
 import com.apps.ecommerce.dto.OrderItemRequest;
+import com.apps.ecommerce.dto.OrderResponse;
 import com.apps.ecommerce.entity.Product;
 import com.apps.ecommerce.entity.User;
 import com.apps.ecommerce.enums.Role;
@@ -80,5 +81,18 @@ public class OrderServiceIntegrationTest {
 
         assertEquals(10, productRepository.findById(laptopId).get().getStock());
         assertEquals(0, orderRepository.count());
+    }
+
+    @Test
+    @DisplayName("a successful order reduces the stock in the database")
+    void reducesStockInDatabase() {
+        OrderCreateRequest request = new OrderCreateRequest(
+                List.of(new OrderItemRequest(laptopId, 2)));
+
+        OrderResponse response = orderService.create(userId, request);
+
+        assertEquals(1, orderRepository.count());
+        assertEquals(8, productRepository.findById(laptopId).get().getStock());
+        assertEquals(0, new BigDecimal("2000.00").compareTo(response.totalPrice()));
     }
 }
