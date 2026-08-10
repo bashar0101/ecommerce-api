@@ -87,6 +87,15 @@ public class OrderService {
 
         }
 
+        public List<OrderResponse> getAllByUserId(UUID userId) {
+                User user = userRepository.findById(userId)
+                                .orElseThrow(() -> new ResourceNotFoundException(User.class, userId));
+
+                return orderRepository.findAllByUser(user).stream()
+                                .map(this::toDto)
+                                .toList();
+        }
+
         private OrderResponse toDto(Order order) {
                 List<OrderItemResponse> items = order.getItems().stream()
                                 .map(i -> new OrderItemResponse(

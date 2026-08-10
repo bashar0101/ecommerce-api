@@ -12,9 +12,12 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 import java.net.URI;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
@@ -31,6 +34,12 @@ public class OrderController {
         OrderResponse newOrder = orderService.create(userId, dto);
 
         return ResponseEntity.created(URI.create("/api/v1/orders/" + newOrder.id())).body(newOrder);
+    }
+
+    @GetMapping("/{userId}")
+    public ResponseEntity<List<OrderResponse>> getOrdersByUserId(@PathVariable UUID userId) {
+        List<OrderResponse> orders = orderService.getAllByUserId(userId);
+        return ResponseEntity.ok(orders);
     }
 
 }
