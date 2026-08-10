@@ -25,7 +25,7 @@ import com.apps.ecommerce.repository.OrderRepository;
 import com.apps.ecommerce.repository.ProductRepository;
 import com.apps.ecommerce.repository.UserRepository;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
 @Service

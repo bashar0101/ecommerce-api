@@ -48,7 +48,7 @@ public class Product {
 
     @Override
     public int hashCode() {
-        return getClass().hashCode(); // fixed value, never changes when id is set
+        return java.util.Objects.hash(id);
     }
 
     @Override

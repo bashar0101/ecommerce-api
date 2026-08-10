@@ -44,7 +44,7 @@ public class OrderItem {
     public boolean equals(Object o) {
         if (this == o)
             return true;
-        if (!(o instanceof Product other))
+        if (!(o instanceof OrderItem other))
             return false;
         return id != null && id.equals(other.getId());
     }

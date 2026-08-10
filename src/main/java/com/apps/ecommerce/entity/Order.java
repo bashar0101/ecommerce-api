@@ -62,14 +62,14 @@ public class Order {
     public boolean equals(Object o) {
         if (this == o)
             return true;
-        if (!(o instanceof Product other))
+        if (!(o instanceof Order other))
             return false;
         return id != null && id.equals(other.getId());
     }
 
     @Override
     public int hashCode() {
-        return getClass().hashCode(); // fixed value, never changes when id is set
+        return java.util.Objects.hash(id);
     }
 
 }
