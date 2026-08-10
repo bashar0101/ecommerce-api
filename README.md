@@ -1,3 +1,5 @@
+![tests](https://github.com/bashar0101/ecommerce-api/actions/workflows/tests.yml/badge.svg)
+
 # E-Commerce API
 
 A learning project: a REST API for a simple online store, built with Spring Boot.
