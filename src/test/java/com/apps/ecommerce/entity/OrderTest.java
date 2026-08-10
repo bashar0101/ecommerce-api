@@ -1,4 +1,4 @@
-package com.apps.ecommerce.service;
+package com.apps.ecommerce.entity;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

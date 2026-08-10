@@ -95,7 +95,7 @@ public class User {
 
     @Override
     public int hashCode() {
-        return java.util.Objects.hash(id);
+        return getClass().hashCode(); // fixed value, never changes when id is set
     }
 
 }
