@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -52,6 +53,10 @@ public class OrderServiceIntegrationTest {
         user.setEmail("test@example.com");
         user.setPassword("x");
         user.setRole(Role.USER); // use your own enum value
+        // firstName, lastName and createdAt are all @Column(nullable = false)
+        user.setFirstName("Test");
+        user.setLastName("User");
+        user.setCreatedAt(LocalDateTime.now());
         userId = userRepository.save(user).getId();
 
         Product laptop = new Product();

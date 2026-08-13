@@ -21,6 +21,7 @@ import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -31,6 +32,8 @@ import com.apps.ecommerce.dto.OrderItemResponse;
 import com.apps.ecommerce.dto.OrderResponse;
 import com.apps.ecommerce.enums.OrderStatus;
 import com.apps.ecommerce.exception.InsufficientStockException;
+import com.apps.ecommerce.security.AppUserDetailsService;
+import com.apps.ecommerce.security.JwtService;
 import com.apps.ecommerce.service.OrderService;
 
 import tools.jackson.databind.ObjectMapper;
@@ -40,6 +43,12 @@ import tools.jackson.databind.ObjectMapper;
 // Without it Spring Security's defaults apply and every POST is rejected with 403.
 @WebMvcTest(OrderController.class)
 @Import(SecurityConfig.class)
+// /api/v1/orders/** is .authenticated(), so an anonymous request is rejected
+// with
+// 403 before it reaches the controller. @WithMockUser puts an authenticated
+// principal in the SecurityContext, which is what the JWT filter would do in
+// production once it has validated a token.
+@WithMockUser
 public class OrderControllerTest {
         @Autowired
         private MockMvc mockMvc;
@@ -48,6 +57,16 @@ public class OrderControllerTest {
 
         @MockitoBean
         private OrderService orderService; // org.springframework.test.context.bean.override.mockito.MockitoBean
+
+        // SecurityConfig now depends on JwtAuthFilter, which depends on JwtService.
+        // JwtAuthFilter is a Filter, so the @WebMvcTest slice does load it — but
+        // JwtService is a plain @Service and is not in the slice, so it has to be
+        // supplied here or the context fails to start.
+        @MockitoBean
+        private JwtService jwtService;
+
+        @MockitoBean
+        private AppUserDetailsService appUserDetailsService;
 
         private final UUID userId = UUID.randomUUID();
         private final UUID productId = UUID.randomUUID();

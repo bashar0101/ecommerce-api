@@ -1,10 +1,10 @@
 package com.apps.ecommerce.entity;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 import com.apps.ecommerce.enums.Role;
 
-import jakarta.annotation.Generated;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -12,14 +12,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 
-import org.springframework.data.domain.Persistable;
-
 import jakarta.persistence.Id;
-import jakarta.persistence.PostLoad;
-import jakarta.persistence.PostPersist;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
-import jakarta.persistence.Transient;
 import lombok.AllArgsConstructor;
 
 import lombok.Getter;
@@ -71,6 +65,12 @@ public class User {
     // }
     // }
 
+    @Column(nullable = false)
+    private String firstName;
+
+    @Column(nullable = false)
+    private String lastName;
+
     @Column(nullable = false, unique = true)
     private String email;
 
@@ -83,6 +83,9 @@ public class User {
 
     @Column(nullable = false)
     private boolean enabled;
+
+    @Column(nullable = false)
+    private LocalDateTime createdAt;
 
     @Override
     public boolean equals(Object o) {

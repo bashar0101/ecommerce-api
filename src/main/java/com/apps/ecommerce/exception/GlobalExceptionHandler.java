@@ -7,6 +7,7 @@ import java.util.Map;
 import org.springframework.security.core.AuthenticationException;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -27,6 +28,19 @@ public class GlobalExceptionHandler {
         ex.getBindingResult().getFieldErrors().forEach(err -> errors.put(err.getField(), err.getDefaultMessage()));
         return new ErrorResponse(
                 400, "Not valid", ex.getMessage(), LocalDateTime.now(), errors);
+    }
+
+    /**
+     * A body Jackson cannot parse — malformed JSON, or a value that does not fit
+     * the target type, such as "role": "superuser" against the Role enum. Without
+     * this, the catch-all Exception handler below claims it as a 500, even though
+     * the request is the client's mistake.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorResponse handleUnreadableBody(HttpMessageNotReadableException ex) {
+        return new ErrorResponse(
+                400, "Malformed request body", ex.getMostSpecificCause().getMessage(), LocalDateTime.now(), null);
     }
 
     @ExceptionHandler(AuthenticationException.class)
