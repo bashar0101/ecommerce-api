@@ -21,9 +21,11 @@ services:
     ports:
       - "8080:8080"
     environment:
+
       SPRING_DATASOURCE_URL: "jdbc:mysql://db:3306/ecommerce?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
       DB_USER: ecommerce
       DB_PASSWORD: ecommercepass
+      JWT_SECRET: 225ccbee3e52601a554e999b650f4c70fe0a39026dd126ecf73d1754ad80b9be
     depends_on:
       db:
         condition: service_healthy

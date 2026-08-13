@@ -54,6 +54,7 @@ public class OrderServiceTest {
 
         User user = new User();
         user.setId(userId);
+        user.setEmail("test@example.com");
 
         Product product = new Product();
         product.setId(productId);
@@ -61,13 +62,18 @@ public class OrderServiceTest {
         product.setStock(3);
         product.setPrice(new BigDecimal("100000"));
 
-        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
         when(productRepository.findAllById(any())).thenReturn(List.of(product));
 
         // 5 > the stock of 3, so the check must trip
         OrderCreateRequest request = new OrderCreateRequest(List.of(new OrderItemRequest(productId, 5)));
 
-        assertThrows(InsufficientStockException.class, () -> orderService.create(userId, request));
+        // this when using userId
+        // assertThrows(InsufficientStockException.class, () ->
+        // orderService.create(userId, request));
+
+        // but here asimplementation using email
+        assertThrows(InsufficientStockException.class, () -> orderService.create("test@example.com", request));
 
         assertEquals(3, product.getStock());
         verify(orderRepository, never()).save(any());
@@ -82,6 +88,7 @@ public class OrderServiceTest {
 
         User user = new User();
         user.setId(userId);
+        user.setEmail("test@example.com");
 
         Product product = new Product();
         product.setId(productId);
@@ -89,14 +96,15 @@ public class OrderServiceTest {
         product.setPrice(new BigDecimal("25.50"));
         product.setStock(10);
 
-        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
         when(productRepository.findAllById(any())).thenReturn(List.of(product));
         when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
 
         OrderCreateRequest request = new OrderCreateRequest(
                 List.of(new OrderItemRequest(productId, 2)));
 
-        OrderResponse response = orderService.create(userId, request);
+        // OrderResponse response = orderService.create(userId, request);
+        OrderResponse response = orderService.create("test@example.com", request);
 
         assertEquals(0, new BigDecimal("51.00").compareTo(response.totalPrice()));
         assertEquals(8, product.getStock());

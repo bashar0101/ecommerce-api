@@ -1,7 +1,6 @@
 package com.apps.ecommerce.controller;
 
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.apps.ecommerce.dto.OrderCreateRequest;
@@ -21,7 +20,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
@@ -36,15 +34,20 @@ public class OrderController {
     @PostMapping("")
     public ResponseEntity<OrderResponse> createOrder(@AuthenticationPrincipal UserDetails principal,
             @Valid @RequestBody OrderCreateRequest dto) {
-        String email = principal.getUsername();
-        UUID userId = userRepository.findByEmail(email).map(User::getId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        OrderResponse newOrder = orderService.create(userId, dto);
+        // this method using userID
+        // String email = principal.getUsername();
+        // UUID userId = userRepository.findByEmail(email).map(User::getId)
+        // .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // OrderResponse newOrder = orderService.create(userId, dto);
+
+        OrderResponse newOrder = orderService.create(principal.getUsername(), dto);
 
         return ResponseEntity.created(URI.create("/api/v1/orders/" + newOrder.id())).body(newOrder);
     }
 
+    @SuppressWarnings("null")
     @GetMapping("")
     public ResponseEntity<List<OrderResponse>> getOrdersByUserId(@AuthenticationPrincipal UserDetails principal) {
         String email = principal.getUsername();

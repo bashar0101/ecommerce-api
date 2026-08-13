@@ -81,8 +81,13 @@ public class OrderServiceIntegrationTest {
                 new OrderItemRequest(laptopId, 2), // fine
                 new OrderItemRequest(mouseId, 5))); // fails
 
+        // this when using userId
+        // assertThrows(InsufficientStockException.class,
+        // () -> orderService.create(userId, request));
+
+        // but here asimplementation using email
         assertThrows(InsufficientStockException.class,
-                () -> orderService.create(userId, request));
+                () -> orderService.create("test@example.com", request));
 
         assertEquals(10, productRepository.findById(laptopId).get().getStock());
         assertEquals(0, orderRepository.count());
@@ -94,7 +99,7 @@ public class OrderServiceIntegrationTest {
         OrderCreateRequest request = new OrderCreateRequest(
                 List.of(new OrderItemRequest(laptopId, 2)));
 
-        OrderResponse response = orderService.create(userId, request);
+        OrderResponse response = orderService.create("test@example.com", request);
 
         assertEquals(1, orderRepository.count());
         assertEquals(8, productRepository.findById(laptopId).get().getStock());

@@ -19,6 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -32,6 +33,7 @@ import com.apps.ecommerce.dto.OrderItemResponse;
 import com.apps.ecommerce.dto.OrderResponse;
 import com.apps.ecommerce.enums.OrderStatus;
 import com.apps.ecommerce.exception.InsufficientStockException;
+import com.apps.ecommerce.repository.UserRepository;
 import com.apps.ecommerce.security.AppUserDetailsService;
 import com.apps.ecommerce.security.JwtService;
 import com.apps.ecommerce.service.OrderService;
@@ -48,6 +50,7 @@ import tools.jackson.databind.ObjectMapper;
 // 403 before it reaches the controller. @WithMockUser puts an authenticated
 // principal in the SecurityContext, which is what the JWT filter would do in
 // production once it has validated a token.
+@AutoConfigureMockMvc(addFilters = false)
 @WithMockUser
 public class OrderControllerTest {
         @Autowired
@@ -67,6 +70,11 @@ public class OrderControllerTest {
 
         @MockitoBean
         private AppUserDetailsService appUserDetailsService;
+
+        // OrderController injects UserRepository directly. Repositories are not part
+        // of the @WebMvcTest slice, so it has to be supplied here.
+        @MockitoBean
+        private UserRepository userRepository;
 
         private final UUID userId = UUID.randomUUID();
         private final UUID productId = UUID.randomUUID();
