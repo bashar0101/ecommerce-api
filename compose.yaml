@@ -1,4 +1,10 @@
 services:
+
+  mail:
+    image: axllent/mailpit
+    ports:
+      - "1025:1025"   # SMTP — where your app sends
+      - "8025:8025"   # web page — where you read
   db:
     image: mysql:8.4
     environment:
@@ -21,7 +27,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-
+      MAIL_HOST: mail
       SPRING_DATASOURCE_URL: "jdbc:mysql://db:3306/ecommerce?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
       DB_USER: ecommerce
       DB_PASSWORD: ecommercepass
