@@ -33,8 +33,6 @@ public record UserCreateRequest(
         @Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)\\S+$", message = "Password needs an uppercase letter, a lowercase letter and a digit, and no spaces") //
         String password,
 
-        @NotNull(message = "Role is required") Role role,
-
-        boolean enabled) {
+        @NotNull(message = "Role is required") Role role) {
 
 }

@@ -69,6 +69,12 @@ public class GlobalExceptionHandler {
         return new ErrorResponse(409, "email already registered", ex.getMessage(), LocalDateTime.now(), null);
     }
 
+    @ExceptionHandler(InvalidTokenException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorResponse handleInvalidToken(InvalidTokenException ex) {
+        return new ErrorResponse(400, "Invalid token", ex.getMessage(), LocalDateTime.now(), null);
+    }
+
     @ExceptionHandler(InsufficientStockException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorResponse noStock(InsufficientStockException ex) {

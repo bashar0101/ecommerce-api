@@ -4,6 +4,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.apps.ecommerce.dto.LoginRequest;
+import com.apps.ecommerce.dto.ResendVerificationRequest;
 import com.apps.ecommerce.dto.UserCreateRequest;
 import com.apps.ecommerce.dto.UserCreateResponse;
 import com.apps.ecommerce.service.AuthService;
@@ -19,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -39,12 +41,22 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("token", token));
     }
 
-    // @GetMapping("/test-mail")
-    // public String testMail() {
+    @GetMapping("/verify")
+    public ResponseEntity<Map<String, String>> verify(@RequestParam String token) {
+        authService.verify(token);
+        return ResponseEntity.ok(Map.of("message", "Account verified successfully"));
+    }
 
-    // String to = "basharhas1999@gmail.com";
-    // mailService.send(to, "Hello", "It works.");
-    // return "sent to " + to;
-    // }
+    @PostMapping("/resend")
+    public ResponseEntity<Map<String, String>> resend(@Valid @RequestBody ResendVerificationRequest request) {
+        authService.resendVerification(request.email());
+        return ResponseEntity.ok(Map.of("message", "Verification email sent"));
+    }
 
+    @GetMapping("/test-mail")
+    public String testMail() {
+        String to = "basharhas1999@gmail.com";
+        mailService.send(to, "Hello", "It works.");
+        return "sent to " + to;
+    }
 }

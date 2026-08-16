@@ -80,8 +80,8 @@ public class User {
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     private Role role = Role.USER;
-
-    @Column(nullable = false)
+    
+    @Column(nullable = true)
     private boolean enabled;
 
     @Column(nullable = false)
