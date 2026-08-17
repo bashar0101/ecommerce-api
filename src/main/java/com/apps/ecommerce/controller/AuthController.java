@@ -53,10 +53,10 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("message", "Verification email sent"));
     }
 
-    @GetMapping("/test-mail")
-    public String testMail() {
-        String to = "basharhas1999@gmail.com";
-        mailService.send(to, "Hello", "It works.");
-        return "sent to " + to;
-    }
+    // @GetMapping("/test-mail")
+    // public String testMail() {
+    // String to = "basharhas1999@gmail.com";
+    // mailService.send(to, "Hello", "It works.");
+    // return "sent to " + to;
+    // }
 }
