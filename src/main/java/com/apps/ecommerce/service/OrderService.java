@@ -141,9 +141,13 @@ public class OrderService {
 
         // }
 
-        public List<OrderResponse> getAllByUserId(UUID userId) {
-                User user = userRepository.findById(userId)
-                                .orElseThrow(() -> new ResourceNotFoundException(User.class, userId));
+        /**
+         * Looked up by email so the controller can pass the JWT subject straight
+         * through, without reaching into UserRepository itself.
+         */
+        public List<OrderResponse> getAllByEmail(String email) {
+                User user = userRepository.findByEmail(email)
+                                .orElseThrow(() -> new ResourceNotFoundException(User.class, email));
 
                 return orderRepository.findAllByUser(user).stream()
                                 .map(this::toDto)

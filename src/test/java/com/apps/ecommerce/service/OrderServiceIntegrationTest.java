@@ -13,7 +13,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import com.apps.ecommerce.dto.OrderCreateRequest;
 import com.apps.ecommerce.dto.OrderItemRequest;
@@ -25,6 +27,7 @@ import com.apps.ecommerce.exception.InsufficientStockException;
 import com.apps.ecommerce.repository.OrderRepository;
 import com.apps.ecommerce.repository.ProductRepository;
 import com.apps.ecommerce.repository.UserRepository;
+import com.apps.ecommerce.repository.VerificationTokenRepository;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -38,6 +41,11 @@ public class OrderServiceIntegrationTest {
     private UserRepository userRepository;
     @Autowired
     private OrderRepository orderRepository;
+    @Autowired
+    private VerificationTokenRepository tokenRepository;
+
+    @MockitoBean
+    private JavaMailSender mailSender;
 
     private UUID userId;
     private UUID laptopId;
@@ -45,8 +53,12 @@ public class OrderServiceIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        // Children before parents. AuthServiceIntegrationTest shares this H2 database
+        // and leaves verification_token rows behind; those hold a foreign key to
+        // users, so deleting users first is a constraint violation.
         orderRepository.deleteAll();
         productRepository.deleteAll();
+        tokenRepository.deleteAll();
         userRepository.deleteAll();
 
         User user = new User();

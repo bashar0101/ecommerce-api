@@ -51,6 +51,7 @@ public class OrderItem {
 
     @Override
     public int hashCode() {
-        return java.util.Objects.hash(id);
+        // Constant on purpose — see Order.hashCode.
+        return getClass().hashCode();
     }
 }

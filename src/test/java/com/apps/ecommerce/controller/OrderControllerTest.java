@@ -33,7 +33,6 @@ import com.apps.ecommerce.dto.OrderItemResponse;
 import com.apps.ecommerce.dto.OrderResponse;
 import com.apps.ecommerce.enums.OrderStatus;
 import com.apps.ecommerce.exception.InsufficientStockException;
-import com.apps.ecommerce.repository.UserRepository;
 import com.apps.ecommerce.security.AppUserDetailsService;
 import com.apps.ecommerce.security.JwtService;
 import com.apps.ecommerce.service.OrderService;
@@ -70,11 +69,6 @@ public class OrderControllerTest {
 
         @MockitoBean
         private AppUserDetailsService appUserDetailsService;
-
-        // OrderController injects UserRepository directly. Repositories are not part
-        // of the @WebMvcTest slice, so it has to be supplied here.
-        @MockitoBean
-        private UserRepository userRepository;
 
         private final UUID userId = UUID.randomUUID();
         private final UUID productId = UUID.randomUUID();

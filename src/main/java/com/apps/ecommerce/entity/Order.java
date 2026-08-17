@@ -69,7 +69,10 @@ public class Order {
 
     @Override
     public int hashCode() {
-        return java.util.Objects.hash(id);
+        // Constant on purpose. An id-derived hash changes the moment Hibernate
+        // assigns the id on insert, which moves the object to a different bucket
+        // and makes an already-added HashSet entry unfindable.
+        return getClass().hashCode();
     }
 
 }

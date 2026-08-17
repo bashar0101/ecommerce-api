@@ -8,7 +8,7 @@ services:
   db:
     image: mysql:8.4
     environment:
-      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_ROOT_PASSWORD: password
       MYSQL_DATABASE: ecommerce
       MYSQL_USER: ecommerce
       MYSQL_PASSWORD: ecommercepass
@@ -28,6 +28,10 @@ services:
       - "8080:8080"
     environment:
       MAIL_HOST: mail
+      MAIL_PORT: 1025
+      # Prefix for the activation links in the emails. Must be the URL a browser
+      # can actually reach — not the container hostname.
+      APP_BASE_URL: http://localhost:8080
       SPRING_DATASOURCE_URL: "jdbc:mysql://db:3306/ecommerce?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
       DB_USER: ecommerce
       DB_PASSWORD: ecommercepass
@@ -35,6 +39,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      # Without this the app can start before SMTP is listening, and the first
+      # registrations lose their activation mail — nothing retries.
+      mail:
+        condition: service_started
 
 volumes:
   mysql_data:

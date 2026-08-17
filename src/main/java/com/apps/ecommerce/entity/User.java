@@ -81,7 +81,8 @@ public class User {
     @Enumerated(EnumType.STRING)
     private Role role = Role.USER;
     
-    @Column(nullable = true)
+    /** False until the emailed activation link is clicked. Gates login. */
+    @Column(nullable = false)
     private boolean enabled;
 
     @Column(nullable = false)

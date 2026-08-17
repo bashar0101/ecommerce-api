@@ -8,7 +8,6 @@ import com.apps.ecommerce.dto.ResendVerificationRequest;
 import com.apps.ecommerce.dto.UserCreateRequest;
 import com.apps.ecommerce.dto.UserCreateResponse;
 import com.apps.ecommerce.service.AuthService;
-import com.apps.ecommerce.service.MailService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +27,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 public class AuthController {
 
     private final AuthService authService;
-    private final MailService mailService;
 
     @PostMapping("/register")
     public ResponseEntity<UserCreateResponse> register(@Valid @RequestBody UserCreateRequest user) {
@@ -47,10 +45,15 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("message", "Account verified successfully"));
     }
 
+    /**
+     * Always answers the same way, whatever happened inside. Telling the caller
+     * apart "no such account" from "already verified" from "sent" would turn this
+     * public endpoint into a way to discover which addresses are registered.
+     */
     @PostMapping("/resend")
     public ResponseEntity<Map<String, String>> resend(@Valid @RequestBody ResendVerificationRequest request) {
         authService.resendVerification(request.email());
-        return ResponseEntity.ok(Map.of("message", "Verification email sent"));
+        return ResponseEntity.ok(Map.of("message", "If that address needs verification, an email has been sent"));
     }
 
     // @GetMapping("/test-mail")

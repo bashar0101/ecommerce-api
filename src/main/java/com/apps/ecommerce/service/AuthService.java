@@ -1,6 +1,7 @@
 package com.apps.ecommerce.service;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.context.ApplicationEventPublisher;
@@ -23,10 +24,17 @@ import com.apps.ecommerce.repository.VerificationTokenRepository;
 import com.apps.ecommerce.security.JwtService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthService {
+
+    private static final long TOKEN_TTL_HOURS = 24;
+
+    /** A resend inside this window is ignored, so /resend cannot be used to flood an inbox. */
+    private static final long RESEND_COOLDOWN_MINUTES = 5;
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -50,13 +58,7 @@ public class AuthService {
         newUser.setCreatedAt(LocalDateTime.now());
         userRepository.save(newUser);
 
-        VerificationToken token = new VerificationToken();
-        token.setToken(UUID.randomUUID().toString());
-        token.setUser(newUser);
-        token.setExpiresAt(LocalDateTime.now().plusHours(24));
-        tokenRepository.save(token);
-
-        events.publishEvent(new UserRegisteredEvent(newUser.getId(), newUser.getEmail(), token.getToken()));
+        issueToken(newUser);
 
         return new UserCreateResponse(
                 newUser.getEmail(),
@@ -78,31 +80,77 @@ public class AuthService {
         VerificationToken token = tokenRepository.findByToken(tokenValue)
                 .orElseThrow(() -> new InvalidTokenException("Invalid activation link"));
 
+        User user = token.getUser();
+
+        // Checked before usedAt on purpose. Mail scanners (Outlook SafeLinks, Gmail)
+        // fetch the link when the message arrives, so the token is often already
+        // consumed by the time the human clicks. The account is verified either way,
+        // so report success rather than an error the user cannot act on.
+        if (user.isEnabled()) {
+            return;
+        }
+
         if (token.getUsedAt() != null)
             throw new InvalidTokenException("Link already used");
         if (token.getExpiresAt().isBefore(LocalDateTime.now()))
             throw new InvalidTokenException("Link expired, please request a new one");
 
-        User user = token.getUser();
         user.setEnabled(true);
-        token.setUsedAt(LocalDateTime.now());
+        invalidateOutstandingTokens(user);
     }
 
+    /**
+     * Deliberately silent about what happened. Returning different answers for
+     * "no such account", "already verified" and "sent" would let anyone probe
+     * which addresses are registered, so every outcome looks identical from
+     * outside and the detail only goes to the log.
+     */
     @Transactional
     public void resendVerification(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new InvalidTokenException("No account found for this email"));
-
-        if (user.isEnabled()) {
-            throw new InvalidTokenException("Account is already verified");
+        Optional<User> found = userRepository.findByEmail(email);
+        if (found.isEmpty()) {
+            log.debug("Resend requested for unknown address");
+            return;
         }
+
+        User user = found.get();
+        if (user.isEnabled()) {
+            log.debug("Resend requested for an already verified account");
+            return;
+        }
+
+        boolean withinCooldown = tokenRepository.findFirstByUserOrderByCreatedAtDesc(user)
+                .filter(t -> t.getCreatedAt().isAfter(LocalDateTime.now().minusMinutes(RESEND_COOLDOWN_MINUTES)))
+                .isPresent();
+        if (withinCooldown) {
+            log.debug("Resend ignored, still inside the {} minute cooldown", RESEND_COOLDOWN_MINUTES);
+            return;
+        }
+
+        issueToken(user);
+    }
+
+    /**
+     * Mints a fresh activation token and hands the email off to the listener.
+     * Any token still outstanding for this user is retired first, so only the
+     * newest link ever works.
+     */
+    private void issueToken(User user) {
+        invalidateOutstandingTokens(user);
 
         VerificationToken token = new VerificationToken();
         token.setToken(UUID.randomUUID().toString());
         token.setUser(user);
-        token.setExpiresAt(LocalDateTime.now().plusHours(24));
+        token.setExpiresAt(LocalDateTime.now().plusHours(TOKEN_TTL_HOURS));
         tokenRepository.save(token);
 
-        events.publishEvent(new UserRegisteredEvent(user.getId(), user.getEmail(), token.getToken()));
+        events.publishEvent(new UserRegisteredEvent(user.getEmail(), token.getToken()));
+    }
+
+    /** Marks every unused token for this user as consumed, so old links stop working. */
+    private void invalidateOutstandingTokens(User user) {
+        LocalDateTime now = LocalDateTime.now();
+        tokenRepository.findAllByUserAndUsedAtIsNull(user)
+                .forEach(t -> t.setUsedAt(now));
     }
 }
