@@ -47,7 +47,6 @@ public class OrderServiceIntegrationTest {
     @MockitoBean
     private JavaMailSender mailSender;
 
-    // private UUID userId;
     private UUID laptopId;
     private UUID mouseId;
 
@@ -69,7 +68,7 @@ public class OrderServiceIntegrationTest {
         user.setFirstName("Test");
         user.setLastName("User");
         user.setCreatedAt(LocalDateTime.now());
-        // userId = userRepository.save(user).getId();
+        userRepository.save(user);
 
         Product laptop = new Product();
         laptop.setName("Laptop");
