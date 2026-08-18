@@ -148,9 +148,24 @@ public class AuthServiceIntegrationTest {
     @Test
     @DisplayName("resend stays silent for an unknown address")
     void resendIsSilentForUnknownAddress() {
-        // No throw, and nothing written — the endpoint must not reveal who has an account.
+        // No throw, and nothing written — the endpoint must not reveal who has an
+        // account.
         authService.resendVerification("nobody@example.com");
 
         assertEquals(0, tokenRepository.count());
+    }
+
+    @Test
+    @DisplayName("a banned user cannot re-enable themselves with the old link")
+    void bannedUserCannotReactivate() {
+        User user = register();
+        String token = onlyToken();
+        authService.verify(token);
+
+        user.setEnabled(false); // an admin bans them
+        userRepository.save(user);
+
+        assertThrows(InvalidTokenException.class, () -> authService.verify(token));
+        assertFalse(userRepository.findByEmail(EMAIL).orElseThrow().isEnabled());
     }
 }
