@@ -13,10 +13,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.apps.ecommerce.dto.LoginRequest;
 import com.apps.ecommerce.dto.UserCreateRequest;
@@ -28,11 +34,14 @@ import com.apps.ecommerce.repository.UserRepository;
 import com.apps.ecommerce.repository.VerificationTokenRepository;
 
 @SpringBootTest
+@AutoConfigureMockMvc
 @ActiveProfiles("test")
 public class AuthServiceIntegrationTest {
 
     private static final String EMAIL = "new1@example.com";
 
+    @Autowired
+    private MockMvc mockMvc;
     @Autowired
     private AuthService authService;
     @Autowired
@@ -56,7 +65,7 @@ public class AuthServiceIntegrationTest {
     }
 
     private User register() {
-        authService.register(new UserCreateRequest("New", "User", EMAIL, "password123", Role.USER));
+        authService.register(new UserCreateRequest("New", "User", EMAIL, "password123"));
         return userRepository.findByEmail(EMAIL).orElseThrow();
     }
 
@@ -134,6 +143,24 @@ public class AuthServiceIntegrationTest {
 
         assertThrows(InvalidTokenException.class, () -> authService.verify(token.getToken()));
         assertFalse(userRepository.findByEmail(EMAIL).orElseThrow().isEnabled());
+    }
+
+    @Test
+    @DisplayName("a client cannot register itself as an admin")
+    void registrationIgnoresAClientSuppliedRole() throws Exception {
+        // /register is permitAll, so a role in the body would be an escalation path.
+        // UserCreateRequest has no role component, so Jackson drops this silently.
+        mockMvc.perform(post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"firstName":"Sneaky","lastName":"User","email":"%s",
+                         "password":"Password123","role":"ADMIN","enabled":true}
+                        """.formatted(EMAIL)))
+                .andExpect(status().isCreated());
+
+        User created = userRepository.findByEmail(EMAIL).orElseThrow();
+        assertEquals(Role.USER, created.getRole(), "the server decides the role, not the caller");
+        assertFalse(created.isEnabled(), "the server decides the enabled flag, not the caller");
     }
 
     @Test

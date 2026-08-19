@@ -33,6 +33,7 @@ This README is written to be read top to bottom by someone who has never seen th
 - [API reference](#api-reference)
 - [Configuration](#configuration)
 - [Testing](#testing)
+- [Deploying to Render](#deploying-to-render)
 - [Known issues and what's missing](#known-issues-and-whats-missing)
 
 ---
@@ -56,7 +57,7 @@ There are real defects in the current code. They are listed honestly in [Known i
 |---|---|
 | Language | Java 17 |
 | Framework | Spring Boot 4.1.0 (Web MVC, Data JPA, Security, Validation, Mail) |
-| Database | MySQL 8 |
+| Database | PostgreSQL 16 (deployed on Render) |
 | Auth | JWT via `io.jsonwebtoken` (jjwt 0.12.6) |
 | Mail (dev) | Mailpit — a fake SMTP server with a web inbox |
 | Tests | JUnit 5, Mockito, Spring Test, H2 in-memory |
@@ -65,12 +66,18 @@ There are real defects in the current code. They are listed honestly in [Known i
 
 ## Running it
 
-**Prerequisites:** JDK 17+, MySQL on `localhost:3306`, and an SMTP server on `localhost:1025` for activation mail.
+**Prerequisites:** JDK 17+, PostgreSQL on `localhost:5432` with an `ecommerce` database, and an SMTP server on `localhost:1025` for activation mail.
+
+Postgres has no equivalent of MySQL's `createDatabaseIfNotExist`, so create it once:
+
+```bash
+createdb -U postgres ecommerce
+```
 
 Create `.env` in the project root (gitignored — copy `.env.example`):
 
 ```properties
-DB_USER=root
+DB_USER=postgres
 DB_PASSWORD=your_password
 JWT_SECRET=a_long_random_string_at_least_32_bytes
 ```
@@ -90,7 +97,7 @@ Everything in Docker instead:
 docker compose up --build
 ```
 
-`compose.yaml` defines three services — `mail` (Mailpit), `db` (MySQL 8.4 on host port **3307**, with a persistent `mysql_data` volume), and `app`.
+`compose.yaml` defines three services — `mail` (Mailpit), `db` (PostgreSQL 16 on host port **5433**, so it cannot collide with a Postgres you already run, with a persistent `postgres_data` volume), and `app`.
 
 Read the activation emails at **http://localhost:8025**. Nothing leaves your machine.
 
@@ -127,7 +134,7 @@ HTTP request
 └─────────────────────────────────────────────────────┘
     │
     ▼
-  MySQL
+  PostgreSQL
 ```
 
 Two rules hold this together:
@@ -183,7 +190,7 @@ JPA entities. One class per table, and the schema is generated from them.
 | `enabled` | not null | **false until the email is verified** |
 | `createdAt` | not null | set by `AuthService` |
 
-Named `users`, not `user`, because `USER` is a reserved word in standard SQL. MySQL tolerates it; H2 (used by the tests) does not.
+Named `users`, not `user`, because `USER` is a reserved word in standard SQL — PostgreSQL and H2 both reject the unquoted form.
 
 `enabled` is the gate the whole verification feature hangs on. `AppUserDetailsService` translates it into Spring Security's "account disabled" state, which makes login fail for unverified users.
 
@@ -263,7 +270,7 @@ Java `record`s. Immutable, no boilerplate, and validated declaratively — the a
 
 | Record | Fields and rules |
 |---|---|
-| `UserCreateRequest` | `firstName`/`lastName` — `@NotBlank`, `@Size(2,50)`, letters-only pattern · `email` — `@NotBlank @Email` · `password` — `@NotBlank`, `@Size(8,72)`, `@Pattern` · `role` — `@NotNull Role` |
+| `UserCreateRequest` | `firstName`/`lastName` — `@NotBlank`, `@Size(2,50)`, letters-only pattern · `email` — `@NotBlank @Email` · `password` — `@NotBlank`, `@Size(8,72)`, `@Pattern`. **No `role`, no `enabled`** — the server sets both |
 | `LoginRequest` | `email` — `@NotBlank @Email` · `password` — `@NotBlank` |
 | `ResendVerificationRequest` | `email` — `@NotBlank @Email` |
 | `ProductCreateRequest` | `name` — `@NotBlank` · `price` — `@NotNull @DecimalMin("0.0", inclusive=false)` · `stock` — `@NotNull @Min(0)` · `description` |
@@ -649,7 +656,7 @@ Base URL `http://localhost:8080`. Controllers carry the full `/api/v1/...` path 
 
 | Method | Path | Body | Success |
 |---|---|---|---|
-| POST | `/api/v1/auth/register` | `firstName, lastName, email, password, role` | 201 + user |
+| POST | `/api/v1/auth/register` | `firstName, lastName, email, password` | 201 + user |
 | POST | `/api/v1/auth/login` | `email, password` | 200 + `{token}` |
 | GET | `/api/v1/auth/verify?token=…` | — | 200 + message |
 | POST | `/api/v1/auth/resend` | `email` | 200 + message |
@@ -701,8 +708,9 @@ curl -X POST http://localhost:8080/api/v1/orders \
 
 | Property | Default | Purpose |
 |---|---|---|
-| `spring.datasource.url` | `jdbc:mysql://localhost:3306/ecommerce?…createDatabaseIfNotExist=true` | schema is created on first run |
-| `spring.datasource.username` / `.password` | `${DB_USER:root}` / `${DB_PASSWORD}` | from `.env` |
+| `spring.datasource.url` | `jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:ecommerce}` | assembled from parts so Render can supply them individually |
+| `spring.datasource.username` / `.password` | `${DB_USER:postgres}` / `${DB_PASSWORD}` | from `.env` locally, from the managed database on Render |
+| `server.port` | `${PORT:8080}` | Render injects `PORT` and expects the process to bind it |
 | `spring.jpa.hibernate.ddl-auto` | `update` | must not be `create-drop` — the Docker volume is persistent |
 | `spring.jpa.show-sql` | `true` | watch the batched SELECT and stock UPDATEs |
 | `jwt.secret` | `${JWT_SECRET}` | ≥ 32 bytes or the app will not start |
@@ -722,13 +730,13 @@ A `#` only starts a comment at the **start of a line** in a properties file. `DB
 ./mvnw test -Dtest=ProductTest   # one class
 ```
 
-Tests run against **H2 in memory**, never your MySQL. `src/test/resources/application-test.properties` swaps the datasource, and the Spring-booting tests opt in with `@ActiveProfiles("test")`.
+Tests run against **H2 in memory**, never your PostgreSQL. `src/test/resources/application-test.properties` swaps the datasource, and the Spring-booting tests opt in with `@ActiveProfiles("test")`.
 
 ```properties
-spring.datasource.url=jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1;NON_KEYWORDS=USER
+spring.datasource.url=jdbc:h2:mem:testdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;NON_KEYWORDS=USER
 ```
 
-- `MODE=MySQL` — H2 imitates the production dialect.
+- `MODE=PostgreSQL` — H2 imitates the production dialect.
 - `DB_CLOSE_DELAY=-1` — keeps the database alive between connections; without it H2 drops everything when the last connection closes, mid-run.
 - `NON_KEYWORDS=USER` — H2 2.x treats `USER` as reserved. Redundant now that the entity maps to `users`, kept as a guard.
 
@@ -752,25 +760,47 @@ spring.datasource.url=jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1;NON_KEYWOR
 
 ---
 
+## Deploying to Render
+
+`render.yaml` is a Blueprint: it creates both the managed PostgreSQL instance and the Docker web service.
+
+1. Push the branch, then in Render pick **New → Blueprint** and select this repo and branch.
+2. Render reads `render.yaml` and proposes `ecommerce-db` (free Postgres) and `ecommerce-api` (Docker web service).
+3. Fill in the prompted values — everything marked `sync: false`: `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`, `APP_BASE_URL`.
+4. After the first deploy, set `APP_BASE_URL` to the live URL (`https://<service>.onrender.com`) and redeploy — otherwise the emailed activation links point at `localhost:8080`.
+
+`DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD` are wired straight from the managed database, and `JWT_SECRET` is generated as a 256-bit value. None of them are ever typed in or committed.
+
+The datasource URL is assembled from separate parts rather than taken whole because Render publishes a `postgres://user:pass@host/db` URL, and the JDBC driver needs `jdbc:postgresql://`. Taking host, port and name separately avoids parsing it.
+
+**Render runs no SMTP server.** Point the `MAIL_*` variables at a real provider (Brevo, Mailgun, a Gmail app password); `MAIL_SMTP_AUTH` and `MAIL_SMTP_STARTTLS` are preset to `true`. Until they are set, registration still returns 201 but the activation email fails and the account cannot be activated.
+
+**Making an admin.** Registration always creates a `USER`. Promote yourself against the Render database with:
+
+```sql
+UPDATE users SET role = 'ADMIN' WHERE email = 'you@example.com';
+```
+
+Log in again afterwards — the role is baked into the JWT at login, so an existing token still says `USER`.
+
+Free-tier behaviour worth knowing: the service sleeps after ~15 minutes idle and the next request takes ~50 seconds, and free Postgres instances are removed after 30 days.
+
 ## Known issues and what's missing
 
 A review of the `email-ver` branch raised 18 issues. Most are fixed; the rest are open by decision and explained below.
 
 ### Open, and deliberately so
 
-**Registration lets the client choose their own role.** `UserCreateRequest.role` is client-supplied and `AuthService` copies it to the entity, so `POST /api/v1/auth/register {"role":"ADMIN"}` on a `permitAll` endpoint mints an administrator — verify the email, log in, and the JWT carries `role: ADMIN`, which `SecurityConfig` honours for product writes.
-
-Kept because it is the only way to create an admin without hand-editing the database, and this project runs on one laptop. **It must be closed before the API is reachable by anyone else**: force `Role.USER` in `register`, drop `role` from the request record, and promote admins by SQL or a seeder.
-
 **Mail failures are swallowed.** `UserRegisteredListener` catches every exception and logs it. By then the transaction has committed and the client has its 201, so a dead SMTP server leaves a permanently disabled account with no email and nothing retrying. A real fix needs a delivery-state column and a retry job — an outbox — which is more machinery than this project currently justifies.
 
-**Stock has no lock.** Two concurrent buyers of the last unit can both read `stock = 1`, both pass the check, and both decrement. `@Transactional` does not prevent it; MySQL's default `REPEATABLE READ` does not serialize these two transactions. Fixes, cheapest first: an atomic `UPDATE product SET stock = stock - :qty WHERE id = :id AND stock >= :qty` treating "0 rows affected" as out of stock; `@Lock(PESSIMISTIC_WRITE)` on the fetch; or a `@Version` column with retry.
+**Stock has no lock.** Two concurrent buyers of the last unit can both read `stock = 1`, both pass the check, and both decrement. `@Transactional` does not prevent it; PostgreSQL's default `READ COMMITTED` does not serialize these two transactions. Fixes, cheapest first: an atomic `UPDATE product SET stock = stock - :qty WHERE id = :id AND stock >= :qty` treating "0 rows affected" as out of stock; `@Lock(PESSIMISTIC_WRITE)` on the fetch; or a `@Version` column with retry.
 
 ### Fixed
 
 | Was | Now |
 |---|---|
 | `GET /auth/test-mail` — public, hardcoded personal address, unbounded mail | endpoint gone, and `AuthController` no longer injects `MailService` |
+| `POST /register {"role":"ADMIN"}` minted an admin | `role` removed from `UserCreateRequest`; `register` always sets `Role.USER`. Promote by SQL — see below |
 | `JwtAuthFilter` never checked `enabled` | runs `AccountStatusUserDetailsChecker` on every request, so disabling an account takes effect immediately instead of at token expiry |
 | `/resend` returned three distinguishable outcomes | one identical 200 for every case; the detail goes to the log only |
 | `/resend` had no rate limit | 5-minute per-user cooldown, silently ignored inside the window |

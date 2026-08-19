@@ -17,6 +17,7 @@ import com.apps.ecommerce.dto.UserCreateResponse;
 import com.apps.ecommerce.dto.UserRegisteredEvent;
 import com.apps.ecommerce.entity.User;
 import com.apps.ecommerce.entity.VerificationToken;
+import com.apps.ecommerce.enums.Role;
 import com.apps.ecommerce.exception.DuplicateResourceException;
 import com.apps.ecommerce.exception.InvalidTokenException;
 import com.apps.ecommerce.repository.UserRepository;
@@ -53,7 +54,10 @@ public class AuthService {
         newUser.setFirstName(user.firstName());
         newUser.setLastName(user.lastName());
         newUser.setPassword(passwordEncoder.encode(user.password()));
-        newUser.setRole(user.role());
+        // Server decides, never the caller. /register is permitAll, so honouring a
+        // client-supplied role would let anyone register themselves as an admin.
+        // Promote a real admin with SQL: UPDATE users SET role='ADMIN' WHERE email=...
+        newUser.setRole(Role.USER);
         newUser.setEnabled(false);
         newUser.setCreatedAt(LocalDateTime.now());
         userRepository.save(newUser);
