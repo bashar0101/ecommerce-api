@@ -1,0 +1,80 @@
+# Render Blueprint. In the dashboard: New > Blueprint, point it at this repo,
+# and Render creates both the database and the web service from this file.
+#
+# Everything marked "sync: false" is prompted for at deploy time and never
+# stored in git.
+
+databases:
+  - name: ecommerce-db
+    databaseName: ecommerce
+    user: ecommerce
+    plan: free
+
+services:
+  - type: web
+    name: ecommerce-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    # Public and cheap — proves the app is up without needing a token.
+    healthCheckPath: /api/v1/products
+    envVars:
+      # --- Database: pulled from the managed Postgres above, not typed by hand.
+      # Kept as separate parts because Render's DATABASE_URL is a postgres:// URL
+      # and the JDBC driver needs a jdbc:postgresql:// one.
+      - key: DB_HOST
+        fromDatabase:
+          name: ecommerce-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: ecommerce-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: ecommerce-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: ecommerce-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: ecommerce-db
+          property: password
+
+      # --- Auth: a 256-bit random value, regenerated only if you delete it.
+      # Must stay >= 32 bytes or the app refuses to start.
+      - key: JWT_SECRET
+        generateValue: true
+
+      # --- Mail: Render runs no SMTP server, so point these at a real provider
+      # (Brevo, Mailgun, Gmail app-password, ...). Until they are set, activation
+      # emails fail and the listener logs the failure — registration still
+      # returns 201 but the account cannot be activated.
+      - key: MAIL_HOST
+        sync: false
+      - key: MAIL_PORT
+        sync: false
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_SMTP_AUTH
+        value: "true"
+      - key: MAIL_SMTP_STARTTLS
+        value: "true"
+      - key: MAIL_FROM
+        sync: false
+
+      # --- Activation links. Set this to the service's own URL after the first
+      # deploy, e.g. https://ecommerce-api.onrender.com — otherwise the emailed
+      # links point at localhost.
+      - key: APP_BASE_URL
+        sync: false
+
+      # --- Quieter logs in a deployed environment.
+      - key: SHOW_SQL
+        value: "false"
+      - key: APP_LOG_LEVEL
+        value: INFO

@@ -5,19 +5,20 @@ services:
     ports:
       - "1025:1025"   # SMTP — where your app sends
       - "8025:8025"   # web page — where you read
+
   db:
-    image: mysql:8.4
+    image: postgres:16
     environment:
-      MYSQL_ROOT_PASSWORD: password
-      MYSQL_DATABASE: ecommerce
-      MYSQL_USER: ecommerce
-      MYSQL_PASSWORD: ecommercepass
+      POSTGRES_DB: ecommerce
+      POSTGRES_USER: ecommerce
+      POSTGRES_PASSWORD: ecommercepass
     ports:
-      - "3307:3306"
+      # 5433 on the host so this never collides with a Postgres you already run.
+      - "5433:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD-SHELL", "pg_isready -U ecommerce -d ecommerce"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -27,14 +28,18 @@ services:
     ports:
       - "8080:8080"
     environment:
+      # Inside the compose network the database is reachable as "db" on 5432,
+      # not on the 5433 the host sees.
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ecommerce
+      DB_USER: ecommerce
+      DB_PASSWORD: ecommercepass
       MAIL_HOST: mail
       MAIL_PORT: 1025
       # Prefix for the activation links in the emails. Must be the URL a browser
       # can actually reach — not the container hostname.
       APP_BASE_URL: http://localhost:8080
-      SPRING_DATASOURCE_URL: "jdbc:mysql://db:3306/ecommerce?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
-      DB_USER: ecommerce
-      DB_PASSWORD: ecommercepass
       JWT_SECRET: 225ccbee3e52601a554e999b650f4c70fe0a39026dd126ecf73d1754ad80b9be
     depends_on:
       db:
@@ -45,4 +50,4 @@ services:
         condition: service_started
 
 volumes:
-  mysql_data:
+  postgres_data:
