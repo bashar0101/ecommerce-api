@@ -20,6 +20,7 @@ import com.apps.ecommerce.entity.VerificationToken;
 import com.apps.ecommerce.enums.Role;
 import com.apps.ecommerce.exception.DuplicateResourceException;
 import com.apps.ecommerce.exception.InvalidTokenException;
+import com.apps.ecommerce.exception.TooManyRequestsException;
 import com.apps.ecommerce.repository.UserRepository;
 import com.apps.ecommerce.repository.VerificationTokenRepository;
 import com.apps.ecommerce.security.JwtService;
@@ -32,9 +33,14 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class AuthService {
 
+    private final RateLimiter rateLimiter;
+
     private static final long TOKEN_TTL_HOURS = 24;
 
-    /** A resend inside this window is ignored, so /resend cannot be used to flood an inbox. */
+    /**
+     * A resend inside this window is ignored, so /resend cannot be used to flood an
+     * inbox.
+     */
     private static final long RESEND_COOLDOWN_MINUTES = 5;
 
     private final UserRepository userRepository;
@@ -73,6 +79,13 @@ public class AuthService {
     }
 
     public String login(LoginRequest loginRequest) {
+
+        String key = "rl:login:" + loginRequest.email().toLowerCase();
+        int maxAttempts = 5; // This could be externalized to application.properties
+        int windowSeconds = 60; // This could be externalized to application.properties
+        if (!rateLimiter.allow(key, maxAttempts, windowSeconds)) {
+            throw new TooManyRequestsException("Too many login attempts. Try again in a minute.");
+        }
         authManager
                 .authenticate(new UsernamePasswordAuthenticationToken(loginRequest.email(), loginRequest.password()));
 
@@ -151,7 +164,10 @@ public class AuthService {
         events.publishEvent(new UserRegisteredEvent(user.getEmail(), token.getToken()));
     }
 
-    /** Marks every unused token for this user as consumed, so old links stop working. */
+    /**
+     * Marks every unused token for this user as consumed, so old links stop
+     * working.
+     */
     private void invalidateOutstandingTokens(User user) {
         LocalDateTime now = LocalDateTime.now();
         tokenRepository.findAllByUserAndUsedAtIsNull(user)

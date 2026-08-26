@@ -81,4 +81,10 @@ public class GlobalExceptionHandler {
         return new ErrorResponse(409, "no stock", ex.getMessage(), LocalDateTime.now(), null);
     }
 
+    @ExceptionHandler(TooManyRequestsException.class)
+    @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
+    public ErrorResponse handleTooManyRequests(TooManyRequestsException ex) {
+        return new ErrorResponse(429, "Too many requests", ex.getMessage(), LocalDateTime.now(), null);
+    }
 }
+    

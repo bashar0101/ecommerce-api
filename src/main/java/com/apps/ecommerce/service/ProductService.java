@@ -2,6 +2,8 @@ package com.apps.ecommerce.service;
 
 import java.util.UUID;
 
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -37,14 +39,17 @@ public class ProductService {
         return toDto(p);
     }
 
+    @Cacheable(value = "products", key = "#id")
     public ProductResponse findById(UUID id) {
         return toDto(getEntity(id));
     }
 
+    @CacheEvict(value = "products", key = "#id")
     public void deleteById(UUID id) {
         productRepo.delete(getEntity(id));
     }
 
+    @CacheEvict(value = "products", key = "#id")
     @Transactional
     public ProductResponse update(UUID id, ProductCreateRequest dto) {
         Product product = getEntity(id);

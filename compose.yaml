@@ -1,5 +1,10 @@
 services:
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
   mail:
     image: axllent/mailpit
     ports:
@@ -37,6 +42,10 @@ services:
       DB_PASSWORD: ecommercepass
       MAIL_HOST: mail
       MAIL_PORT: 1025
+      # Service names, not localhost: inside the compose network each container
+      # has its own loopback, so "localhost" here would mean the app itself.
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       # Prefix for the activation links in the emails. Must be the URL a browser
       # can actually reach — not the container hostname.
       APP_BASE_URL: http://localhost:8080
@@ -47,6 +56,8 @@ services:
       # Without this the app can start before SMTP is listening, and the first
       # registrations lose their activation mail — nothing retries.
       mail:
+        condition: service_started
+      redis:
         condition: service_started
 
 volumes:
