@@ -2,7 +2,7 @@ package com.apps.ecommerce.service;
 
 import java.time.Duration;
 
-import org.springframework.data.redis.RedisConnectionFailureException;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -24,7 +24,12 @@ public class RateLimiter {
                 redis.expire(key, Duration.ofSeconds(windowSeconds));
             }
             return count == null || count <= max;
-        } catch (RedisConnectionFailureException ex) {
+        } catch (DataAccessException ex) {
+            // DataAccessException, not RedisConnectionFailureException: a refused
+            // connection throws the latter, but a host that accepts and then hangs
+            // trips the command timeout and throws QueryTimeoutException instead.
+            // Both extend DataAccessException, which is what Spring translates every
+            // Redis failure into — catching the subclass let real outages through.
             log.warn("Redis unavailable, rate limiting skipped", ex);
             return true; // let the request through
         }

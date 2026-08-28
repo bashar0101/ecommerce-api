@@ -11,6 +11,14 @@ databases:
     plan: free
 
 services:
+  # Backs both the login rate limiter and the product cache. Both fail open, so
+  # losing this degrades the app rather than breaking it — but without it there
+  # is no throttling on /auth/login at all.
+  - type: keyvalue
+    name: ecommerce-redis
+    plan: free
+    ipAllowList: []          # empty = reachable only from inside Render
+
   - type: web
     name: ecommerce-api
     runtime: docker
@@ -43,27 +51,35 @@ services:
           name: ecommerce-db
           property: password
 
+      # --- Redis: taken from the Key Value instance above. Same reasoning as the
+      # database — host and port separately, so no URL parsing is needed.
+      - key: REDIS_HOST
+        fromService:
+          type: keyvalue
+          name: ecommerce-redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: keyvalue
+          name: ecommerce-redis
+          property: port
+
       # --- Auth: a 256-bit random value, regenerated only if you delete it.
       # Must stay >= 32 bytes or the app refuses to start.
       - key: JWT_SECRET
         generateValue: true
 
-      # --- Mail: Render runs no SMTP server, so point these at a real provider
-      # (Brevo, Mailgun, Gmail app-password, ...). Until they are set, activation
-      # emails fail and the listener logs the failure — registration still
-      # returns 201 but the account cannot be activated.
-      - key: MAIL_HOST
+      # --- Mail: over HTTPS, not SMTP. Render blocks outbound 25/465/587, and
+      # the block drops packets rather than refusing them, so an SMTP send hangs
+      # for the full socket timeout and then reports "Connect timed out".
+      # api.resend.com is port 443, which is never blocked.
+      - key: MAIL_PROVIDER
+        value: resend
+      - key: RESEND_API_KEY
         sync: false
-      - key: MAIL_PORT
-        sync: false
-      - key: MAIL_USERNAME
-        sync: false
-      - key: MAIL_PASSWORD
-        sync: false
-      - key: MAIL_SMTP_AUTH
-        value: "true"
-      - key: MAIL_SMTP_STARTTLS
-        value: "true"
+      # Must be onboarding@resend.dev, or an address on a domain you verified in
+      # Resend. Anything else is rejected. Note that until a domain is verified,
+      # Resend only delivers to the address the account was registered with.
       - key: MAIL_FROM
         sync: false
 
