@@ -22,6 +22,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.apps.ecommerce.dto.LoginRequest;
@@ -170,6 +171,28 @@ public class AuthServiceIntegrationTest {
 
         assertThrows(DisabledException.class,
                 () -> authService.login(new LoginRequest(EMAIL, "password123")));
+    }
+
+    @Test
+    @DisplayName("an unverified login says so, a wrong password does not")
+    void unverifiedLoginIsDistinguishedFromBadCredentials() throws Exception {
+        register(); // created disabled
+
+        // Correct password, unverified account: the message must point at the real
+        // problem, or the user hunts for a typo that isn't there.
+        mockMvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"%s\",\"password\":\"password123\"}".formatted(EMAIL)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("Account not verified"));
+
+        // A genuinely wrong password stays vague — it must not reveal whether the
+        // address exists.
+        mockMvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"nobody@example.com\",\"password\":\"WrongPass123\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("invalid email or password"));
     }
 
     @Test
