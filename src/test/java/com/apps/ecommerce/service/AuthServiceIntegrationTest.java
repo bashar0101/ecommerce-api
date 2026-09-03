@@ -17,6 +17,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -28,10 +29,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.apps.ecommerce.dto.LoginRequest;
 import com.apps.ecommerce.dto.UserCreateRequest;
 import com.apps.ecommerce.entity.User;
+import com.apps.ecommerce.entity.PasswordResetToken;
 import com.apps.ecommerce.entity.VerificationToken;
 import com.apps.ecommerce.enums.Role;
 import com.apps.ecommerce.exception.InvalidTokenException;
 import com.apps.ecommerce.repository.UserRepository;
+import com.apps.ecommerce.repository.PasswordResetTokenRepository;
 import com.apps.ecommerce.repository.VerificationTokenRepository;
 
 @SpringBootTest
@@ -49,6 +52,8 @@ public class AuthServiceIntegrationTest {
     private UserRepository userRepository;
     @Autowired
     private VerificationTokenRepository tokenRepository;
+    @Autowired
+    private PasswordResetTokenRepository resetTokenRepository;
 
     /** Keeps the tests off a real SMTP server; the listener still fires. */
     @MockitoBean
@@ -61,6 +66,7 @@ public class AuthServiceIntegrationTest {
      */
     @BeforeEach
     void cleanUp() {
+        resetTokenRepository.deleteAll();
         tokenRepository.deleteAll();
         userRepository.deleteAll();
     }
@@ -217,5 +223,78 @@ public class AuthServiceIntegrationTest {
 
         assertThrows(InvalidTokenException.class, () -> authService.verify(token));
         assertFalse(userRepository.findByEmail(EMAIL).orElseThrow().isEnabled());
+    }
+
+    // ---------- password reset ----------
+
+    /** Registers, verifies, and returns the now-enabled user. */
+    private User registeredAndVerified() {
+        register();
+        authService.verify(onlyToken());
+        return userRepository.findByEmail(EMAIL).orElseThrow();
+    }
+
+    @Test
+    @DisplayName("a reset token is only issued for a verified account")
+    void resetIsOnlyForVerifiedAccounts() {
+        register(); // still disabled
+
+        authService.requestPasswordReset(EMAIL);
+
+        // Otherwise resetting would be a way to get a working password on an
+        // address you never proved you own.
+        assertEquals(0, resetTokenRepository.count());
+    }
+
+    @Test
+    @DisplayName("reset stays silent for an unknown address")
+    void resetIsSilentForUnknownAddress() {
+        authService.requestPasswordReset("nobody@example.com");
+
+        assertEquals(0, resetTokenRepository.count());
+    }
+
+    @Test
+    @DisplayName("a valid token changes the password and the old one stops working")
+    void resetChangesThePassword() {
+        registeredAndVerified();
+        authService.requestPasswordReset(EMAIL);
+        String reset = resetTokenRepository.findAll().get(0).getToken();
+
+        authService.resetPassword(reset, "BrandNewPass9");
+
+        // New password works.
+        assertNotNull(authService.login(new LoginRequest(EMAIL, "BrandNewPass9")));
+        // Old one does not.
+        assertThrows(BadCredentialsException.class,
+                () -> authService.login(new LoginRequest(EMAIL, "password123")));
+    }
+
+    @Test
+    @DisplayName("a reset token cannot be used twice")
+    void resetTokenIsSingleUse() {
+        registeredAndVerified();
+        authService.requestPasswordReset(EMAIL);
+        String reset = resetTokenRepository.findAll().get(0).getToken();
+
+        authService.resetPassword(reset, "BrandNewPass9");
+
+        // Unlike verify(), replay must fail - otherwise anyone who saw the link
+        // could set the password again later.
+        assertThrows(InvalidTokenException.class,
+                () -> authService.resetPassword(reset, "AttackerPass9"));
+    }
+
+    @Test
+    @DisplayName("an expired reset token is rejected")
+    void expiredResetTokenIsRejected() {
+        registeredAndVerified();
+        authService.requestPasswordReset(EMAIL);
+        PasswordResetToken reset = resetTokenRepository.findAll().get(0);
+        reset.setExpiresAt(LocalDateTime.now().minusMinutes(1));
+        resetTokenRepository.save(reset);
+
+        assertThrows(InvalidTokenException.class,
+                () -> authService.resetPassword(reset.getToken(), "BrandNewPass9"));
     }
 }
