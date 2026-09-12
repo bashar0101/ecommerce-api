@@ -21,12 +21,9 @@ public class AppUserDetailsService implements UserDetailsService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
 
-        return org.springframework.security.core.userdetails.User
-                .withUsername(user.getEmail())
-                .password(user.getPassword())
-                .roles(user.getRole().name())
-                .disabled(!user.isEnabled())
-                .build();
+        // AppUserDetails, not Spring's builder: the filter needs the entity itself
+        // to read credentialsChangedAt.
+        return new AppUserDetails(user);
     }
 
 }

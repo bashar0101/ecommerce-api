@@ -2,6 +2,7 @@ package com.apps.ecommerce.security;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -20,9 +21,11 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
@@ -38,14 +41,20 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             try {
                 Claims claims = jwtService.parse(header.substring(7));
                 UserDetails user = userDetailsService.loadUserByUsername(claims.getSubject());
-                User appUser = (User) user; 
-                Instant issuedAt = claims.getIssuedAt().toInstant();
-                if (appUser.getCredentialsChangedAt() != null
-                        && issuedAt
-                                .isBefore(appUser.getCredentialsChangedAt().atZone(ZoneId.systemDefault()).toInstant())) {
-                    // token was made before the password changed — reject it
-                    filterChain.doFilter(request, response);
-                    return;
+
+                // instanceof, not a cast. A plain cast threw ClassCastException for
+                // every request while the service still returned Spring's own
+                // UserDetails, and the catch below hid it - so a valid token always
+                // ended up anonymous and every protected endpoint answered 401.
+                if (user instanceof AppUserDetails details) {
+                    LocalDateTime changedAt = details.getUser().getCredentialsChangedAt();
+                    Instant issuedAt = claims.getIssuedAt().toInstant();
+                    if (changedAt != null
+                            && issuedAt.isBefore(changedAt.atZone(ZoneId.systemDefault()).toInstant())) {
+                        // The token predates the password change, so it is revoked.
+                        filterChain.doFilter(request, response);
+                        return;
+                    }
                 }
                 // The AuthenticationManager runs this on the login path, but nothing
                 // did on the token path — so an account disabled after login kept
@@ -57,8 +66,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                         user, null, user.getAuthorities());
                 SecurityContextHolder.getContext().setAuthentication(auth);
 
-            } catch (Exception ignored) {
-                // bad token: stay anonymous, the rules below will reject it
+            } catch (Exception ex) {
+                // Bad token: stay anonymous and let the URL rules answer 401. Logged
+                // at debug because an expired token is normal traffic - but it must
+                // be logged, or a real bug in here is invisible, which is exactly
+                // what happened with the ClassCastException above.
+                log.debug("Rejected JWT: {}", ex.toString());
             }
         }
 
