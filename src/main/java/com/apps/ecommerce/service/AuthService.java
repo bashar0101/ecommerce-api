@@ -14,12 +14,17 @@ import org.springframework.transaction.annotation.Transactional;
 import com.apps.ecommerce.dto.LoginRequest;
 import com.apps.ecommerce.dto.UserCreateRequest;
 import com.apps.ecommerce.dto.UserCreateResponse;
+import com.apps.ecommerce.dto.PasswordResetRequestedEvent;
 import com.apps.ecommerce.dto.UserRegisteredEvent;
 import com.apps.ecommerce.entity.User;
+import com.apps.ecommerce.entity.PasswordResetToken;
 import com.apps.ecommerce.entity.VerificationToken;
+import com.apps.ecommerce.enums.Role;
 import com.apps.ecommerce.exception.DuplicateResourceException;
 import com.apps.ecommerce.exception.InvalidTokenException;
+import com.apps.ecommerce.exception.TooManyRequestsException;
 import com.apps.ecommerce.repository.UserRepository;
+import com.apps.ecommerce.repository.PasswordResetTokenRepository;
 import com.apps.ecommerce.repository.VerificationTokenRepository;
 import com.apps.ecommerce.security.JwtService;
 
@@ -31,16 +36,29 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class AuthService {
 
+    private final RateLimiter rateLimiter;
+
     private static final long TOKEN_TTL_HOURS = 24;
 
-    /** A resend inside this window is ignored, so /resend cannot be used to flood an inbox. */
+    /**
+     * A resend inside this window is ignored, so /resend cannot be used to flood an
+     * inbox.
+     */
     private static final long RESEND_COOLDOWN_MINUTES = 5;
+
+    /**
+     * Far shorter than a verification token's 24h. A reset link is a live
+     * credential for the account — anyone holding it can take it over — so the
+     * window in which a leaked one is useful should be small.
+     */
+    private static final long RESET_TTL_MINUTES = 60;
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authManager;
     private final VerificationTokenRepository tokenRepository;
+    private final PasswordResetTokenRepository resetTokenRepository;
     private final ApplicationEventPublisher events;
 
     @Transactional
@@ -53,7 +71,10 @@ public class AuthService {
         newUser.setFirstName(user.firstName());
         newUser.setLastName(user.lastName());
         newUser.setPassword(passwordEncoder.encode(user.password()));
-        newUser.setRole(user.role());
+        // Server decides, never the caller. /register is permitAll, so honouring a
+        // client-supplied role would let anyone register themselves as an admin.
+        // Promote a real admin with SQL: UPDATE users SET role='ADMIN' WHERE email=...
+        newUser.setRole(Role.USER);
         newUser.setEnabled(false);
         newUser.setCreatedAt(LocalDateTime.now());
         userRepository.save(newUser);
@@ -69,6 +90,13 @@ public class AuthService {
     }
 
     public String login(LoginRequest loginRequest) {
+
+        String key = "rl:login:" + loginRequest.email().toLowerCase();
+        int maxAttempts = 5; // This could be externalized to application.properties
+        int windowSeconds = 60; // This could be externalized to application.properties
+        if (!rateLimiter.allow(key, maxAttempts, windowSeconds)) {
+            throw new TooManyRequestsException("Too many login attempts. Try again in a minute.");
+        }
         authManager
                 .authenticate(new UsernamePasswordAuthenticationToken(loginRequest.email(), loginRequest.password()));
 
@@ -131,6 +159,84 @@ public class AuthService {
     }
 
     /**
+     * Deliberately silent, exactly like resendVerification: the response must not
+     * reveal whether an address has an account. Unknown address, unverified
+     * account and cooldown all return quietly, and only a genuine request mints a
+     * token.
+     *
+     * Unverified accounts are excluded on purpose — otherwise this endpoint would
+     * be a way to bypass email verification entirely, since completing a reset
+     * would hand someone a working password on an address they never proved.
+     */
+    @Transactional
+    public void requestPasswordReset(String email) {
+        Optional<User> found = userRepository.findByEmail(email);
+        if (found.isEmpty()) {
+            log.debug("Password reset requested for unknown address");
+            return;
+        }
+
+        User user = found.get();
+        if (!user.isEnabled()) {
+            log.debug("Password reset requested for an unverified account");
+            return;
+        }
+
+        boolean withinCooldown = resetTokenRepository.findFirstByUserOrderByCreatedAtDesc(user)
+                .filter(t -> t.getCreatedAt().isAfter(LocalDateTime.now().minusMinutes(RESEND_COOLDOWN_MINUTES)))
+                .isPresent();
+        if (withinCooldown) {
+            log.debug("Password reset ignored, still inside the {} minute cooldown", RESEND_COOLDOWN_MINUTES);
+            return;
+        }
+
+        retireOutstandingResetTokens(user);
+
+        PasswordResetToken token = new PasswordResetToken();
+        token.setToken(UUID.randomUUID().toString());
+        token.setUser(user);
+        token.setExpiresAt(LocalDateTime.now().plusMinutes(RESET_TTL_MINUTES));
+        resetTokenRepository.save(token);
+
+        events.publishEvent(new PasswordResetRequestedEvent(user.getEmail(), token.getToken()));
+    }
+
+    /**
+     * Unlike verify(), this is NOT idempotent — a used token must fail. Verifying
+     * twice is harmless because the outcome is identical; letting a reset token be
+     * replayed would let anyone who saw it set the password again later.
+     */
+    @Transactional
+    public void resetPassword(String tokenValue, String newPassword) {
+        PasswordResetToken token = resetTokenRepository.findByToken(tokenValue)
+                .orElseThrow(() -> new InvalidTokenException("Invalid reset link"));
+
+        if (token.getUsedAt() != null)
+            throw new InvalidTokenException("This reset link has already been used");
+        if (token.getExpiresAt().isBefore(LocalDateTime.now()))
+            throw new InvalidTokenException("Reset link expired, please request a new one");
+
+        User user = token.getUser();
+        user.setPassword(passwordEncoder.encode(newPassword));
+        user.setCredentialsChangedAt(LocalDateTime.now());
+
+        token.setUsedAt(LocalDateTime.now());
+        retireOutstandingResetTokens(user);
+
+        log.info("Password reset completed for user {}", user.getId());
+    }
+
+    /**
+     * Retires every unused reset token for this user, so only the newest link
+     * works.
+     */
+    private void retireOutstandingResetTokens(User user) {
+        LocalDateTime now = LocalDateTime.now();
+        resetTokenRepository.findAllByUserAndUsedAtIsNull(user)
+                .forEach(t -> t.setUsedAt(now));
+    }
+
+    /**
      * Mints a fresh activation token and hands the email off to the listener.
      * Any token still outstanding for this user is retired first, so only the
      * newest link ever works.
@@ -147,7 +253,10 @@ public class AuthService {
         events.publishEvent(new UserRegisteredEvent(user.getEmail(), token.getToken()));
     }
 
-    /** Marks every unused token for this user as consumed, so old links stop working. */
+    /**
+     * Marks every unused token for this user as consumed, so old links stop
+     * working.
+     */
     private void invalidateOutstandingTokens(User user) {
         LocalDateTime now = LocalDateTime.now();
         tokenRepository.findAllByUserAndUsedAtIsNull(user)

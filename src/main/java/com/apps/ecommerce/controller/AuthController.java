@@ -3,7 +3,9 @@ package com.apps.ecommerce.controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.apps.ecommerce.dto.ForgotPasswordRequest;
 import com.apps.ecommerce.dto.LoginRequest;
+import com.apps.ecommerce.dto.ResetPasswordRequest;
 import com.apps.ecommerce.dto.ResendVerificationRequest;
 import com.apps.ecommerce.dto.UserCreateRequest;
 import com.apps.ecommerce.dto.UserCreateResponse;
@@ -43,6 +45,23 @@ public class AuthController {
     public ResponseEntity<Map<String, String>> verify(@RequestParam String token) {
         authService.verify(token);
         return ResponseEntity.ok(Map.of("message", "Account verified successfully"));
+    }
+
+    /**
+     * Same uniform answer as /resend, for the same reason: a different response
+     * for "no such account" would turn this public endpoint into a way to
+     * discover which addresses are registered.
+     */
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Map<String, String>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        authService.requestPasswordReset(request.email());
+        return ResponseEntity.ok(Map.of("message", "If that address has an account, a reset email has been sent"));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Map<String, String>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request.token(), request.newPassword());
+        return ResponseEntity.ok(Map.of("message", "Password updated, you can now log in"));
     }
 
     /**

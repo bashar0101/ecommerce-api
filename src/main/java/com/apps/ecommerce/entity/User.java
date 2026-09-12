@@ -65,6 +65,8 @@ public class User {
     // }
     // }
 
+    private LocalDateTime credentialsChangedAt;
+
     @Column(nullable = false)
     private String firstName;
 
@@ -80,7 +82,7 @@ public class User {
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     private Role role = Role.USER;
-    
+
     /** False until the emailed activation link is clicked. Gates login. */
     @Column(nullable = false)
     private boolean enabled;

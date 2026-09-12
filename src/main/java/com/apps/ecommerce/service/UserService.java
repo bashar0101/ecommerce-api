@@ -3,6 +3,7 @@ package com.apps.ecommerce.service;
 import org.springframework.stereotype.Service;
 
 import com.apps.ecommerce.entity.User;
+import com.apps.ecommerce.enums.Role;
 import com.apps.ecommerce.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,11 @@ public class UserService {
         return userRepository.save(user);
     }
 
-    
+    public void updateRole(String email, String role) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found with email: " + email));
+        user.setRole(Role.valueOf(role));
+        userRepository.save(user);
+    }
 
 }

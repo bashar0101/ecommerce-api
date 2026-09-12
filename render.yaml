@@ -1,0 +1,96 @@
+# Render Blueprint. In the dashboard: New > Blueprint, point it at this repo,
+# and Render creates both the database and the web service from this file.
+#
+# Everything marked "sync: false" is prompted for at deploy time and never
+# stored in git.
+
+databases:
+  - name: ecommerce-db
+    databaseName: ecommerce
+    user: ecommerce
+    plan: free
+
+services:
+  # Backs both the login rate limiter and the product cache. Both fail open, so
+  # losing this degrades the app rather than breaking it — but without it there
+  # is no throttling on /auth/login at all.
+  - type: keyvalue
+    name: ecommerce-redis
+    plan: free
+    ipAllowList: []          # empty = reachable only from inside Render
+
+  - type: web
+    name: ecommerce-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    # Public and cheap — proves the app is up without needing a token.
+    healthCheckPath: /api/v1/products
+    envVars:
+      # --- Database: pulled from the managed Postgres above, not typed by hand.
+      # Kept as separate parts because Render's DATABASE_URL is a postgres:// URL
+      # and the JDBC driver needs a jdbc:postgresql:// one.
+      - key: DB_HOST
+        fromDatabase:
+          name: ecommerce-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: ecommerce-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: ecommerce-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: ecommerce-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: ecommerce-db
+          property: password
+
+      # --- Redis: taken from the Key Value instance above. Same reasoning as the
+      # database — host and port separately, so no URL parsing is needed.
+      - key: REDIS_HOST
+        fromService:
+          type: keyvalue
+          name: ecommerce-redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: keyvalue
+          name: ecommerce-redis
+          property: port
+
+      # --- Auth: a 256-bit random value, regenerated only if you delete it.
+      # Must stay >= 32 bytes or the app refuses to start.
+      - key: JWT_SECRET
+        generateValue: true
+
+      # --- Mail: over HTTPS, not SMTP. Render blocks outbound 25/465/587, and
+      # the block drops packets rather than refusing them, so an SMTP send hangs
+      # for the full socket timeout and then reports "Connect timed out".
+      # api.resend.com is port 443, which is never blocked.
+      - key: MAIL_PROVIDER
+        value: resend
+      - key: RESEND_API_KEY
+        sync: false
+      # Must be onboarding@resend.dev, or an address on a domain you verified in
+      # Resend. Anything else is rejected. Note that until a domain is verified,
+      # Resend only delivers to the address the account was registered with.
+      - key: MAIL_FROM
+        sync: false
+
+      # --- Activation links. Set this to the service's own URL after the first
+      # deploy, e.g. https://ecommerce-api.onrender.com — otherwise the emailed
+      # links point at localhost.
+      - key: APP_BASE_URL
+        sync: false
+
+      # --- Quieter logs in a deployed environment.
+      - key: SHOW_SQL
+        value: "false"
+      - key: APP_LOG_LEVEL
+        value: INFO

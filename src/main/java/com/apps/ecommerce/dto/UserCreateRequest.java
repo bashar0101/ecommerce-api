@@ -1,13 +1,15 @@
 package com.apps.ecommerce.dto;
 
-import com.apps.ecommerce.enums.Role;
-
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+/**
+ * Deliberately has no "role" and no "enabled". Both are decided by the server in
+ * AuthService.register. This endpoint is permitAll, so anything accepted here is
+ * chosen by an anonymous caller — a role field would let anyone mint an admin.
+ */
 public record UserCreateRequest(
 
         @NotBlank(message = "First name is required") //
@@ -31,8 +33,6 @@ public record UserCreateRequest(
         @NotBlank(message = "Password is required") //
         @Size(min = 8, max = 72, message = "Password must be between 8 and 72 characters") //
         @Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)\\S+$", message = "Password needs an uppercase letter, a lowercase letter and a digit, and no spaces") //
-        String password,
-
-        @NotNull(message = "Role is required") Role role) {
+        String password) {
 
 }
