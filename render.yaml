@@ -89,6 +89,13 @@ services:
       - key: APP_BASE_URL
         sync: false
 
+      # --- Browser origins allowed to call this API, comma separated. Without
+      # the front end's origin here the browser blocks every request to it with
+      # a CORS error, even though the API itself is reachable.
+      # e.g. https://my-shop.vercel.app,http://localhost:3000
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+
       # --- Quieter logs in a deployed environment.
       - key: SHOW_SQL
         value: "false"
