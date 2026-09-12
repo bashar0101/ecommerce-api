@@ -218,6 +218,7 @@ public class AuthService {
 
         User user = token.getUser();
         user.setPassword(passwordEncoder.encode(newPassword));
+        user.setCredentialsChangedAt(LocalDateTime.now());
 
         token.setUsedAt(LocalDateTime.now());
         retireOutstandingResetTokens(user);
@@ -225,7 +226,10 @@ public class AuthService {
         log.info("Password reset completed for user {}", user.getId());
     }
 
-    /** Retires every unused reset token for this user, so only the newest link works. */
+    /**
+     * Retires every unused reset token for this user, so only the newest link
+     * works.
+     */
     private void retireOutstandingResetTokens(User user) {
         LocalDateTime now = LocalDateTime.now();
         resetTokenRepository.findAllByUserAndUsedAtIsNull(user)

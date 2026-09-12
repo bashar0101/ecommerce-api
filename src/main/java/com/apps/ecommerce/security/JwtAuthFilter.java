@@ -1,6 +1,8 @@
 package com.apps.ecommerce.security;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneId;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -9,6 +11,8 @@ import org.springframework.security.core.userdetails.UserDetailsChecker;
 import org.springframework.security.authentication.AccountStatusUserDetailsChecker;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+
+import com.apps.ecommerce.entity.User;
 
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
@@ -34,7 +38,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             try {
                 Claims claims = jwtService.parse(header.substring(7));
                 UserDetails user = userDetailsService.loadUserByUsername(claims.getSubject());
-
+                User appUser = (User) user; 
+                Instant issuedAt = claims.getIssuedAt().toInstant();
+                if (appUser.getCredentialsChangedAt() != null
+                        && issuedAt
+                                .isBefore(appUser.getCredentialsChangedAt().atZone(ZoneId.systemDefault()).toInstant())) {
+                    // token was made before the password changed — reject it
+                    filterChain.doFilter(request, response);
+                    return;
+                }
                 // The AuthenticationManager runs this on the login path, but nothing
                 // did on the token path — so an account disabled after login kept
                 // working for the rest of its 24h token. Throws for disabled, locked
